@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="進階因式分解卡牌配對遊戲" />
+  <title>因式分解卡牌配對大師</title>
+
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#102a56',
+            ocean: '#1b4b91',
+            sky: '#eef6ff',
+            gold: '#e6ad2d'
+          },
+          boxShadow: {
+            card: '0 12px 25px rgba(16, 42, 86, .16)',
+            lift: '0 18px 34px rgba(16, 42, 86, .25)'
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Firebase SDK & 初始化 -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC92X...",
+      authDomain: "factorization-card-game.firebaseapp.com",
+      databaseURL: "https://factorization-card-game-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "factorization-card-game",
+      storageBucket: "factorization-card-game.firebasestorage.app",
+      messagingSenderId: "453669676484",
+      appId: "1:453669676484:web:14c5463402a343b8997091"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+  </script>
+
+  <!-- MathJax for precise mathematical notation -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']],
+        packages: {'[+]': ['ams']}
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] },
+      startup: { typeset: false }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --ink: #102a56;
+      --ocean: #1b4b91;
+      --gold: #e6ad2d;
+      --paper: #ffffff;
+    }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 8% 10%, rgba(117, 184, 255, .32), transparent 26rem),
+        radial-gradient(circle at 92% 86%, rgba(255, 215, 119, .24), transparent 27rem),
+        linear-gradient(135deg, #edf6ff 0%, #f8fbff 48%, #e9f3ff 100%);
+    }
+
+    .grid-pattern {
+      background-image:
+        linear-gradient(rgba(27, 75, 145, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(27, 75, 145, .035) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .card-scene {
+      min-width: 0;
+      aspect-ratio: 1 / .94;
+      perspective: 1000px;
+    }
+
+    .math-card {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .math-card:focus-visible .card-inner {
+      outline: 4px solid rgba(230, 173, 45, .65);
+      outline-offset: 4px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 620ms cubic-bezier(.2, .76, .25, 1);
+    }
+
+    .math-card.is-flipped .card-inner,
+    .math-card.is-matched .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 1rem;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .card-front {
+      color: white;
+      background:
+        radial-gradient(circle at 75% 18%, rgba(255,255,255,.17) 0 6%, transparent 6.5%),
+        radial-gradient(circle at 22% 80%, rgba(255,255,255,.10) 0 9%, transparent 9.5%),
+        linear-gradient(145deg, #245ba9 0%, #102a56 78%);
+      border: 1px solid rgba(255,255,255,.35);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 9px 16px rgba(16,42,86,.17);
+    }
+
+    .math-card:not(.is-flipped):not(.is-matched):hover .card-front {
+      transform: translateY(-3px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 16px 24px rgba(16,42,86,.25);
+    }
+
+    .card-back {
+      flex-direction: column;
+      padding: .6rem;
+      color: var(--ink);
+      background: #fff;
+      border: 2px solid #d5e5fa;
+      box-shadow: 0 10px 18px rgba(16,42,86,.12);
+      transform: rotateY(180deg);
+    }
+
+    .math-card.is-matched .card-back {
+      color: #4a3510;
+      background:
+        radial-gradient(circle at top right, rgba(255,255,255,.68), transparent 36%),
+        linear-gradient(145deg, #fff8db, #f5ce64);
+      border-color: #dc9c18;
+      box-shadow: 0 0 0 3px rgba(230,173,45,.18), 0 12px 22px rgba(164,113,9,.17);
+    }
+
+    .formula {
+      display: flex;
+      width: 100%;
+      min-height: 0;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: clamp(.86rem, 2.25vw, 1.18rem);
+      line-height: 1.15;
+    }
+
+    .formula mjx-container {
+      max-width: 100%;
+      overflow: visible;
+    }
+
+    .card-badge {
+      position: absolute;
+      top: .45rem;
+      left: .5rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.25rem;
+      height: 1.25rem;
+      border-radius: 9999px;
+      font-size: .65rem;
+      font-weight: 800;
+      color: #1950a0;
+      background: #e9f3ff;
+    }
+
+    .math-card.is-matched .card-badge {
+      color: #78500a;
+      background: rgba(255,255,255,.72);
+    }
+
+    .matched-check {
+      position: absolute;
+      right: .48rem;
+      bottom: .42rem;
+      display: none;
+      width: 1.25rem;
+      height: 1.25rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      color: #fff;
+      background: #229d63;
+      font-size: .75rem;
+      font-weight: 900;
+    }
+
+    .math-card.is-matched .matched-check { display: inline-flex; }
+
+    .front-symbol {
+      display: grid;
+      place-items: center;
+      width: 48%;
+      aspect-ratio: 1;
+      border: 2px solid rgba(255,255,255,.72);
+      border-radius: 9999px;
+      font-family: Georgia, serif;
+      font-size: clamp(1.75rem, 5vw, 3.1rem);
+      font-weight: bold;
+      box-shadow: inset 0 0 0 6px rgba(255,255,255,.08);
+    }
+
+    .front-label {
+      position: absolute;
+      bottom: 12%;
+      letter-spacing: .16em;
+      font-size: .61rem;
+      font-weight: 800;
+      opacity: .84;
+    }
+
+    .stat-value { font-variant-numeric: tabular-nums; }
+
+    .modal-show {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    .modal-show > div {
+      transform: scale(1) translateY(0) !important;
+    }
+
+    @media (max-width: 400px) {
+      .card-face { border-radius: .75rem; }
+      .card-back { padding: .3rem; }
+      .card-badge { top: .27rem; left: .3rem; }
+      .matched-check { right: .28rem; bottom: .23rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body class="grid-pattern text-ink antialiased">
+  <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 sm:py-8">
+    <header class="mb-5 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <div class="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-bold tracking-wide text-ocean shadow-sm">
+          <span class="inline-block h-2 w-2 rounded-full bg-gold"></span>
+          中學數學挑戰
+        </div>
+        <h1 class="text-3xl font-black tracking-tight text-ink sm:text-4xl">因式分解 <span class="text-ocean">×</span> 配對大師</h1>
+        <p class="mt-1 text-sm font-medium text-slate-600 sm:text-base">找出每個展開式與它的正確因式分解。</p>
+        <p id="profileSummary" class="mt-2 hidden text-xs font-bold text-ocean"></p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="teacherBtn" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white/90 px-4 py-3 text-sm font-extrabold text-ocean shadow-sm transition hover:-translate-y-0.5 hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-200 active:translate-y-0">
+          <span aria-hidden="true">⌘</span> 教師後台
+        </button>
+        <button id="restartBtn" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-extrabold text-white shadow-card transition hover:-translate-y-0.5 hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300 active:translate-y-0">
+          <span aria-hidden="true">↻</span> 重新開始
+        </button>
+      </div>
+    </header>
+
+    <section aria-label="遊戲狀態" class="mb-5 grid grid-cols-3 overflow-hidden rounded-2xl border border-blue-100 bg-white/90 shadow-card sm:mb-7">
+      <div class="border-r border-blue-100 px-3 py-3 text-center sm:px-6 sm:py-4">
+        <div class="text-[.64rem] font-extrabold tracking-[.12em] text-slate-500 sm:text-xs">經過時間</div>
+        <div id="timeValue" class="stat-value mt-1 text-xl font-black text-ink sm:text-2xl">00:00</div>
+      </div>
+      <div class="border-r border-blue-100 px-3 py-3 text-center sm:px-6 sm:py-4">
+        <div class="text-[.64rem] font-extrabold tracking-[.12em] text-slate-500 sm:text-xs">翻牌步數</div>
+        <div id="moveValue" class="stat-value mt-1 text-xl font-black text-ink sm:text-2xl">0</div>
+      </div>
+      <div class="px-3 py-3 text-center sm:px-6 sm:py-4">
+        <div class="text-[.64rem] font-extrabold tracking-[.12em] text-slate-500 sm:text-xs">成功配對</div>
+        <div class="stat-value mt-1 text-xl font-black text-ink sm:text-2xl"><span id="matchValue">0</span><span class="text-base text-slate-400"> / 8</span></div>
+      </div>
+    </section>
+
+    <section aria-label="因式分解配對卡牌" class="flex-1">
+      <div class="mb-3 flex justify-center">
+        <span id="setIndicator" class="rounded-full border border-blue-100 bg-white/75 px-3 py-1 text-xs font-bold text-slate-500">完成資料登記後開始挑戰</span>
+      </div>
+      <div id="cardGrid" class="grid grid-cols-4 gap-2.5 sm:gap-4"></div>
+      <p id="gameHint" class="mt-5 text-center text-sm font-medium text-slate-500">提示：每回合翻開兩張卡牌，判斷它們是否為同一題的展開式與因式分解。</p>
+    </section>
+
+    <section aria-labelledby="leaderboardTitle" class="mt-7 overflow-hidden rounded-2xl border border-blue-100 bg-white/90 shadow-card">
+      <div class="flex flex-col gap-1 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p class="text-xs font-extrabold tracking-[.14em] text-ocean">CLOUD TOP 5</p>
+          <h2 id="leaderboardTitle" class="mt-1 text-xl font-black text-ink">雲端排行榜 (Hall of Fame)</h2>
+        </div>
+        <p class="text-xs font-semibold text-slate-500">時間優先；同時以步數較少者排名較前</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[580px] text-left text-sm">
+          <thead class="bg-sky text-xs font-extrabold tracking-wide text-slate-500">
+            <tr>
+              <th scope="col" class="px-5 py-3 text-center">排名</th>
+              <th scope="col" class="px-5 py-3">學生</th>
+              <th scope="col" class="px-5 py-3">班別</th>
+              <th scope="col" class="px-5 py-3">學號</th>
+              <th scope="col" class="px-5 py-3 text-right">時間</th>
+              <th scope="col" class="px-5 py-3 text-right">步數</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardRows" class="divide-y divide-blue-50"></tbody>
+        </table>
+      </div>
+      <p id="leaderboardNote" class="border-t border-blue-50 px-5 py-3 text-center text-xs font-medium text-slate-500">所有通關紀錄已實時同步至 Firebase 雲端資料庫。</p>
+    </section>
+
+    <footer class="mt-6 text-center text-xs font-medium text-slate-400">卡牌配對大師 · 進階因式分解練習</footer>
+  </main>
+
+  <div id="studentModal" class="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/55 p-4 opacity-0 pointer-events-none transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="studentTitle">
+    <div class="w-full max-w-md -translate-y-3 scale-95 rounded-3xl border border-white/70 bg-white p-7 shadow-2xl transition duration-300 sm:p-9">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-100 to-blue-300 text-2xl shadow-sm" aria-hidden="true">✦</div>
+      <p class="mt-5 text-center text-xs font-extrabold tracking-[.16em] text-ocean">PLAYER CHECK-IN</p>
+      <h2 id="studentTitle" class="mt-2 text-center text-3xl font-black text-ink">開始前，先登記資料</h2>
+      <p class="mt-2 text-center text-sm leading-6 text-slate-600">請填寫以下資料；完成遊戲後，成績會同步發布至全班雲端英雄榜。</p>
+      <form id="studentForm" class="mt-6 space-y-4" novalidate>
+        <div>
+          <label for="studentName" class="mb-1.5 block text-sm font-extrabold text-ink">姓名</label>
+          <input id="studentName" name="studentName" type="text" autocomplete="name" required maxlength="40" placeholder="例：陳小明" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <div>
+          <label for="studentClass" class="mb-1.5 block text-sm font-extrabold text-ink">班別</label>
+          <input id="studentClass" name="studentClass" type="text" autocomplete="organization" required maxlength="40" placeholder="例：3A" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <div>
+          <label for="studentId" class="mb-1.5 block text-sm font-extrabold text-ink">學號</label>
+          <input id="studentId" name="studentId" type="text" inputmode="numeric" autocomplete="off" required maxlength="40" placeholder="例：240301" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <p id="formError" class="hidden rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700" role="alert"></p>
+        <button type="submit" class="mt-2 w-full rounded-xl bg-ink px-5 py-3.5 font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">開始隨機挑戰</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="teacherAccessModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4 opacity-0 pointer-events-none transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="teacherAccessTitle">
+    <div class="w-full max-w-md -translate-y-3 scale-95 rounded-3xl border border-white/70 bg-white p-7 shadow-2xl transition duration-300 sm:p-9">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-300 text-2xl shadow-sm" aria-hidden="true">⌘</div>
+      <p class="mt-5 text-center text-xs font-extrabold tracking-[.16em] text-ocean">TEACHER ACCESS</p>
+      <h2 id="teacherAccessTitle" class="mt-2 text-center text-3xl font-black text-ink">教師後台</h2>
+      <p id="teacherAccessDescription" class="mt-2 text-center text-sm leading-6 text-slate-600"></p>
+      <form id="teacherAccessForm" class="mt-6 space-y-4" novalidate>
+        <div>
+          <label for="teacherPassword" class="mb-1.5 block text-sm font-extrabold text-ink">教師密碼</label>
+          <input id="teacherPassword" type="password" autocomplete="current-password" required minlength="6" maxlength="80" placeholder="至少 6 個字元" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <div id="teacherConfirmGroup" class="hidden">
+          <label for="teacherPasswordConfirm" class="mb-1.5 block text-sm font-extrabold text-ink">確認教師密碼</label>
+          <input id="teacherPasswordConfirm" type="password" autocomplete="new-password" minlength="6" maxlength="80" placeholder="再次輸入密碼" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <p id="teacherAccessError" class="hidden rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700" role="alert"></p>
+        <div class="flex gap-3 pt-2">
+          <button id="teacherAccessCancel" type="button" class="flex-1 rounded-xl border border-blue-200 bg-white px-4 py-3 font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100">取消</button>
+          <button id="teacherAccessSubmit" type="submit" class="flex-1 rounded-xl bg-ink px-4 py-3 font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">進入後台</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="teacherDashboardModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4 opacity-0 pointer-events-none transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="teacherDashboardTitle">
+    <div class="flex max-h-[90vh] w-full max-w-5xl -translate-y-3 scale-95 flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl transition duration-300">
+      <div class="flex flex-col gap-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-extrabold tracking-[.14em] text-ocean">TEACHER DASHBOARD</p>
+          <h2 id="teacherDashboardTitle" class="mt-1 text-2xl font-black text-ink">全班歷史成績紀錄</h2>
+          <p id="historyCount" class="mt-1 text-sm font-semibold text-slate-500">共 0 筆通關紀錄</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button id="changeTeacherPasswordBtn" type="button" class="rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100">變更密碼</button>
+          <button id="exportCsvBtn" type="button" class="rounded-xl bg-ink px-4 py-2.5 text-sm font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">匯出 CSV</button>
+          <button id="closeTeacherDashboardBtn" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200">關閉</button>
+        </div>
+      </div>
+      <div class="overflow-auto p-5">
+        <div class="overflow-x-auto rounded-2xl border border-blue-100">
+          <table class="w-full min-w-[780px] text-left text-sm">
+            <thead class="sticky top-0 bg-sky text-xs font-extrabold tracking-wide text-slate-500">
+              <tr>
+                <th scope="col" class="px-4 py-3">完成日期與時間</th>
+                <th scope="col" class="px-4 py-3">學生</th>
+                <th scope="col" class="px-4 py-3">班別</th>
+                <th scope="col" class="px-4 py-3">學號</th>
+                <th scope="col" class="px-4 py-3">題庫</th>
+                <th scope="col" class="px-4 py-3 text-right">通關時間</th>
+                <th scope="col" class="px-4 py-3 text-right">步數</th>
+              </tr>
+            </thead>
+            <tbody id="historyRows" class="divide-y divide-blue-50"></tbody>
+          </table>
+        </div>
+        <p id="historyEmptyState" class="hidden py-8 text-center text-sm font-medium text-slate-400">目前尚未有通關歷史成績。</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="winModal" class="fixed inset-0 z-20 flex items-center justify-center bg-slate-950/45 p-4 opacity-0 pointer-events-none transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+    <div class="w-full max-w-md -translate-y-3 scale-95 rounded-3xl border border-white/70 bg-white p-7 text-center shadow-2xl transition duration-300 sm:p-9">
+      <div class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-amber-200 to-gold text-3xl shadow-lg" aria-hidden="true">★</div>
+      <p class="mt-5 text-sm font-extrabold tracking-[.16em] text-ocean">CHALLENGE COMPLETE</p>
+      <h2 id="winTitle" class="mt-2 text-3xl font-black text-ink">恭喜通關！</h2>
+      <p class="mt-2 text-slate-600"><span id="winStudentName"></span>，你已成功完成全部 <strong class="text-ink">8 組</strong> 進階因式分解配對。</p>
+      <div class="mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-blue-100 bg-sky">
+        <div class="border-r border-blue-100 px-4 py-4">
+          <div class="text-xs font-bold text-slate-500">完成時間</div>
+          <div id="finalTime" class="stat-value mt-1 text-2xl font-black text-ink">00:00</div>
+        </div>
+        <div class="px-4 py-4">
+          <div class="text-xs font-bold text-slate-500">翻牌步數</div>
+          <div id="finalMoves" class="stat-value mt-1 text-2xl font-black text-ink">0</div>
+        </div>
+      </div>
+      <p id="performanceMessage" class="mt-5 text-sm font-semibold text-ocean"></p>
+      <p id="leaderboardMessage" class="mt-2 min-h-5 text-sm font-bold text-emerald-700" aria-live="polite"></p>
+      <button id="playAgainBtn" type="button" class="mt-6 w-full rounded-xl bg-ink px-5 py-3.5 font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">再玩一次</button>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const questionSets = [
+        {
+          label: '題庫 A',
+          description: '第一組進階因式分解題目',
+          pairs: [
+            { id: 1, expansion: String.raw`\(12x^2y - 18xy^2\)`, factor: String.raw`\(6xy(2x - 3y)\)` },
+            { id: 2, expansion: String.raw`\(-5a^3 + 15a^2\)`, factor: String.raw`\(-5a^2(a - 3)\)` },
+            { id: 3, expansion: String.raw`\(16m^2 - 25n^2\)`, factor: String.raw`\((4m - 5n)(4m + 5n)\)` },
+            { id: 4, expansion: String.raw`\(9x^2 - 24xy + 16y^2\)`, factor: String.raw`\((3x - 4y)^2\)` },
+            { id: 5, expansion: String.raw`\(3x^2 - 27\)`, factor: String.raw`\(3(x-3)(x+3)\)` },
+            { id: 6, expansion: String.raw`\(ax - bx - ay + by\)`, factor: String.raw`\((a-b)(x-y)\)` },
+            { id: 7, expansion: String.raw`\(2pa + 2pb - qa - qb\)`, factor: String.raw`\((a+b)(2p-q)\)` },
+            { id: 8, expansion: String.raw`\(x(x-2) - 3(x-2)\)`, factor: String.raw`\((x-2)(x-3)\)` }
+          ]
+        },
+        {
+          label: '題庫 B',
+          description: '第二組進階因式分解題目',
+          pairs: [
+            { id: 1, expansion: String.raw`\(14a^2b^3 + 21a^3b^2\)`, factor: String.raw`\(7a^2b^2(2b + 3a)\)` },
+            { id: 2, expansion: String.raw`\(-4p^2q - 12pq^2\)`, factor: String.raw`\(-4pq(p + 3q)\)` },
+            { id: 3, expansion: String.raw`\(49x^2 - 81y^2\)`, factor: String.raw`\((7x - 9y)(7x + 9y)\)` },
+            { id: 4, expansion: String.raw`\(25a^2 + 60ab + 36b^2\)`, factor: String.raw`\((5a + 6b)^2\)` },
+            { id: 5, expansion: String.raw`\(2m^3 - 32m\)`, factor: String.raw`\(2m(m-4)(m+4)\)` },
+            { id: 6, expansion: String.raw`\(cx - dx + cy - dy\)`, factor: String.raw`\((c-d)(x+y)\)` },
+            { id: 7, expansion: String.raw`\(3am - 3an - 2bm + 2bn\)`, factor: String.raw`\((3a-2b)(m-n)\)` },
+            { id: 8, expansion: String.raw`\(y(2y+1) + 4(2y+1)\)`, factor: String.raw`\((2y+1)(y+4)\)` }
+          ]
+        }
+      ];
+
+      const grid = document.getElementById('cardGrid');
+      const timeValue = document.getElementById('timeValue');
+      const moveValue = document.getElementById('moveValue');
+      const matchValue = document.getElementById('matchValue');
+      const hint = document.getElementById('gameHint');
+      const modal = document.getElementById('winModal');
+      const finalTime = document.getElementById('finalTime');
+      const finalMoves = document.getElementById('finalMoves');
+      const performanceMessage = document.getElementById('performanceMessage');
+      const restartBtn = document.getElementById('restartBtn');
+      const playAgainBtn = document.getElementById('playAgainBtn');
+      const profileSummary = document.getElementById('profileSummary');
+      const setIndicator = document.getElementById('setIndicator');
+      const studentModal = document.getElementById('studentModal');
+      const studentForm = document.getElementById('studentForm');
+      const studentNameInput = document.getElementById('studentName');
+      const studentClassInput = document.getElementById('studentClass');
+      const studentIdInput = document.getElementById('studentId');
+      const formError = document.getElementById('formError');
+      const winStudentName = document.getElementById('winStudentName');
+      const leaderboardRows = document.getElementById('leaderboardRows');
+      const leaderboardNote = document.getElementById('leaderboardNote');
+      const leaderboardMessage = document.getElementById('leaderboardMessage');
+      const LEADERBOARD_STORAGE_KEY = 'factorization-card-match.leaderboard.v1';
+      const HISTORY_STORAGE_KEY = 'factorization-card-match.history.v2';
+      const TEACHER_ACCESS_STORAGE_KEY = 'factorization-card-match.teacher-access.v1';
+      const teacherBtn = document.getElementById('teacherBtn');
+      const teacherAccessModal = document.getElementById('teacherAccessModal');
+      const teacherAccessForm = document.getElementById('teacherAccessForm');
+      const teacherAccessTitle = document.getElementById('teacherAccessTitle');
+      const teacherAccessDescription = document.getElementById('teacherAccessDescription');
+      const teacherPassword = document.getElementById('teacherPassword');
+      const teacherConfirmGroup = document.getElementById('teacherConfirmGroup');
+      const teacherPasswordConfirm = document.getElementById('teacherPasswordConfirm');
+      const teacherAccessError = document.getElementById('teacherAccessError');
+      const teacherAccessSubmit = document.getElementById('teacherAccessSubmit');
+      const teacherAccessCancel = document.getElementById('teacherAccessCancel');
+      const teacherDashboardModal = document.getElementById('teacherDashboardModal');
+      const historyRows = document.getElementById('historyRows');
+      const historyCount = document.getElementById('historyCount');
+      const historyEmptyState = document.getElementById('historyEmptyState');
+      const exportCsvBtn = document.getElementById('exportCsvBtn');
+      const closeTeacherDashboardBtn = document.getElementById('closeTeacherDashboardBtn');
+      const changeTeacherPasswordBtn = document.getElementById('changeTeacherPasswordBtn');
+
+      let openCards = [];
+      let cards = [];
+      let moves = 0;
+      let matches = 0;
+      let seconds = 0;
+      let timerId = null;
+      let isLocked = false;
+      let hasStarted = false;
+      let mismatchTimeout = null;
+      let activeQuestionSet = null;
+      let student = { name: '', className: '', id: '' };
+      let teacherAccessMode = 'login';
+      let returnToDashboardAfterAccess = false;
+
+      function shuffle(array) {
+        const copy = [...array];
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      }
+
+      function formatTime(totalSeconds) {
+        const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const secs = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${mins}:${secs}`;
+      }
+
+      function scoreIdentity(score) {
+        return `${score.className}\u0000${score.id}`;
+      }
+
+      function compareScores(first, second) {
+        return first.seconds - second.seconds || first.moves - second.moves || first.completedAt - second.completedAt;
+      }
+
+      function isValidScore(score) {
+        return score &&
+          typeof score.name === 'string' &&
+          typeof score.className === 'string' &&
+          typeof score.id === 'string' &&
+          Number.isInteger(score.seconds) && score.seconds >= 0 &&
+          Number.isInteger(score.moves) && score.moves >= 0 &&
+          Number.isInteger(score.completedAt);
+      }
+
+      function getHistory() {
+        try {
+          const historyJson = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+          if (historyJson !== null) {
+            const history = JSON.parse(historyJson);
+            return Array.isArray(history) ? history.filter(isValidScore) : [];
+          }
+          return [];
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function saveHistory(history) {
+        try {
+          window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function getBestScores(history = getHistory()) {
+        const bestScores = new Map();
+        history.forEach((score) => {
+          const identity = scoreIdentity(score);
+          const existing = bestScores.get(identity);
+          if (!existing || compareScores(score, existing) < 0) bestScores.set(identity, score);
+        });
+        return [...bestScores.values()];
+      }
+
+      function getLeaderboard() {
+        return getBestScores().sort(compareScores).slice(0, 5);
+      }
+
+      function createLeaderboardCell(text, className = '') {
+        const cell = document.createElement('td');
+        cell.className = `px-5 py-3.5 ${className}`.trim();
+        cell.textContent = text;
+        return cell;
+      }
+
+      function renderLeaderboard() {
+        const scores = getLeaderboard();
+        leaderboardRows.replaceChildren();
+
+        if (scores.length === 0) {
+          const row = document.createElement('tr');
+          const cell = createLeaderboardCell('暫無通關成績，完成一局遊戲即可登上排行榜。', 'py-7 text-center font-medium text-slate-400');
+          cell.colSpan = 6;
+          row.appendChild(cell);
+          leaderboardRows.appendChild(row);
+          return scores;
+        }
+
+        scores.forEach((score, index) => {
+          const row = document.createElement('tr');
+          row.className = index === 0 ? 'bg-amber-50/60' : 'hover:bg-blue-50/45';
+          const medal = ['1', '2', '3', '4', '5'][index];
+          row.append(
+            createLeaderboardCell(medal, `text-center font-black ${index === 0 ? 'text-amber-600' : 'text-slate-500'}`),
+            createLeaderboardCell(score.name, 'font-bold text-ink'),
+            createLeaderboardCell(score.className, 'text-slate-600'),
+            createLeaderboardCell(score.id, 'font-mono text-slate-600'),
+            createLeaderboardCell(formatTime(score.seconds), 'stat-value text-right font-extrabold text-ink'),
+            createLeaderboardCell(String(score.moves), 'stat-value text-right font-extrabold text-ink')
+          );
+          leaderboardRows.appendChild(row);
+        });
+        return scores;
+      }
+
+      function recordScore() {
+        const currentScore = {
+          name: student.name,
+          className: student.className,
+          id: student.id,
+          seconds,
+          moves,
+          completedAt: Date.now(),
+          questionSet: activeQuestionSet ? activeQuestionSet.label : '未標示題庫'
+        };
+
+        // 上傳至 Firebase 雲端資料庫
+        if (typeof database !== 'undefined' && database) {
+          database.ref('scores').push(currentScore);
+        }
+
+        const currentIdentity = scoreIdentity(currentScore);
+        const history = getHistory();
+        const bestBefore = getBestScores(history).find((score) => scoreIdentity(score) === currentIdentity);
+        const personalBest = !bestBefore || compareScores(currentScore, bestBefore) < 0;
+        history.push(currentScore);
+        const saved = saveHistory(history);
+        const personalBestAfter = getBestScores(history).find((score) => scoreIdentity(score) === currentIdentity);
+        const updatedScores = getLeaderboard();
+        const rank = updatedScores.findIndex((score) => scoreIdentity(score) === currentIdentity);
+        renderLeaderboard();
+        renderHistoryTable();
+
+        return {
+          saved,
+          rank: rank === -1 ? null : rank + 1,
+          personalBest,
+          bestTime: personalBestAfter ? personalBestAfter.seconds : seconds,
+          bestMoves: personalBestAfter ? personalBestAfter.moves : moves
+        };
+      }
+
+      function formatCompletedAt(timestamp) {
+        return new Intl.DateTimeFormat('zh-HK', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(new Date(timestamp));
+      }
+
+      function createHistoryCell(text, className = '') {
+        const cell = document.createElement('td');
+        cell.className = `px-4 py-3.5 ${className}`.trim();
+        cell.textContent = text;
+        return cell;
+      }
+
+      function renderHistoryTable() {
+        const history = getHistory().sort((first, second) => second.completedAt - first.completedAt);
+        historyRows.replaceChildren();
+        historyCount.textContent = `共 ${history.length} 筆通關紀錄`;
+        historyEmptyState.classList.toggle('hidden', history.length !== 0);
+
+        history.forEach((score) => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-blue-50/45';
+          row.append(
+            createHistoryCell(formatCompletedAt(score.completedAt), 'whitespace-nowrap text-slate-600'),
+            createHistoryCell(score.name, 'font-bold text-ink'),
+            createHistoryCell(score.className, 'text-slate-600'),
+            createHistoryCell(score.id, 'font-mono text-slate-600'),
+            createHistoryCell(score.questionSet || '舊版題庫', 'text-slate-600'),
+            createHistoryCell(formatTime(score.seconds), 'stat-value whitespace-nowrap text-right font-extrabold text-ink'),
+            createHistoryCell(String(score.moves), 'stat-value text-right font-extrabold text-ink')
+          );
+          historyRows.appendChild(row);
+        });
+      }
+
+      function escapeCsvValue(value) {
+        const text = String(value);
+        return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+      }
+
+      function exportHistoryCsv() {
+        const history = getHistory().sort((first, second) => second.completedAt - first.completedAt);
+        if (history.length === 0) {
+          historyEmptyState.classList.remove('hidden');
+          historyEmptyState.textContent = '目前尚未有可匯出的通關歷史成績。';
+          return;
+        }
+
+        const rows = [
+          ['完成日期與時間', '學生', '班別', '學號', '題庫', '通關時間', '步數'],
+          ...history.map((score) => [
+            formatCompletedAt(score.completedAt),
+            score.name,
+            score.className,
+            score.id,
+            score.questionSet || '舊版題庫',
+            formatTime(score.seconds),
+            String(score.moves)
+          ])
+        ];
+        const csv = `\uFEFF${rows.map((row) => row.map(escapeCsvValue).join(',')).join('\r\n')}`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `因式分解卡牌配對_歷史成績_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+      }
+
+      async function hashTeacherPassword(password) {
+        if (window.crypto && window.crypto.subtle && window.TextEncoder) {
+          const encoded = new TextEncoder().encode(password);
+          const digest = await window.crypto.subtle.digest('SHA-256', encoded);
+          return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+        }
+        return window.btoa(unescape(encodeURIComponent(password)));
+      }
+
+      function getTeacherAccess() {
+        try {
+          const access = JSON.parse(window.localStorage.getItem(TEACHER_ACCESS_STORAGE_KEY) || 'null');
+          return access && typeof access.passwordHash === 'string' ? access : null;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function saveTeacherAccess(passwordHash) {
+        try {
+          window.localStorage.setItem(TEACHER_ACCESS_STORAGE_KEY, JSON.stringify({ passwordHash, updatedAt: Date.now() }));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function showTeacherAccessModal(mode = getTeacherAccess() ? 'login' : 'setup') {
+        teacherAccessMode = mode;
+        if (mode !== 'change') returnToDashboardAfterAccess = false;
+        const isPasswordSetup = mode === 'setup' || mode === 'change';
+        teacherAccessTitle.textContent = mode === 'setup'
+          ? '設定教師存取碼'
+          : mode === 'change'
+            ? '變更教師密碼'
+            : '教師後台登入';
+        teacherAccessDescription.textContent = mode === 'setup'
+          ? '這是首次使用。請設定至少 6 個字元的本機教師存取碼。'
+          : mode === 'change'
+            ? '請設定新的本機教師存取碼。'
+            : '請輸入此瀏覽器已設定的教師存取碼。';
+        teacherConfirmGroup.classList.toggle('hidden', !isPasswordSetup);
+        teacherAccessSubmit.textContent = isPasswordSetup ? '儲存並進入後台' : '進入後台';
+        teacherPassword.value = '';
+        teacherPasswordConfirm.value = '';
+        teacherAccessError.classList.add('hidden');
+        teacherAccessModal.classList.add('modal-show');
+        window.setTimeout(() => teacherPassword.focus(), 180);
+      }
+
+      function hideTeacherAccessModal() {
+        teacherAccessModal.classList.remove('modal-show');
+      }
+
+      function showTeacherDashboard() {
+        renderHistoryTable();
+        teacherDashboardModal.classList.add('modal-show');
+      }
+
+      function hideTeacherDashboard() {
+        teacherDashboardModal.classList.remove('modal-show');
+      }
+
+      async function handleTeacherAccess(event) {
+        event.preventDefault();
+        const password = teacherPassword.value;
+        const confirmation = teacherPasswordConfirm.value;
+        const isPasswordSetup = teacherAccessMode === 'setup' || teacherAccessMode === 'change';
+
+        if (password.length < 6) {
+          teacherAccessError.textContent = '教師密碼至少需要 6 個字元。';
+          teacherAccessError.classList.remove('hidden');
+          teacherPassword.focus();
+          return;
+        }
+
+        if (isPasswordSetup && password !== confirmation) {
+          teacherAccessError.textContent = '兩次輸入的教師密碼不一致。';
+          teacherAccessError.classList.remove('hidden');
+          teacherPasswordConfirm.focus();
+          return;
+        }
+
+        const passwordHash = await hashTeacherPassword(password);
+        if (teacherAccessMode === 'login') {
+          const access = getTeacherAccess();
+          if (!access || access.passwordHash !== passwordHash) {
+            teacherAccessError.textContent = '教師密碼不正確，請重新輸入。';
+            teacherAccessError.classList.remove('hidden');
+            teacherPassword.select();
+            return;
+          }
+        } else if (!saveTeacherAccess(passwordHash)) {
+          teacherAccessError.textContent = '瀏覽器無法儲存教師密碼，請確認 localStorage 是否可用。';
+          teacherAccessError.classList.remove('hidden');
+          return;
+        }
+
+        hideTeacherAccessModal();
+        returnToDashboardAfterAccess = false;
+        showTeacherDashboard();
+      }
+
+      function updateStats() {
+        timeValue.textContent = formatTime(seconds);
+        moveValue.textContent = String(moves);
+        matchValue.textContent = String(matches);
+      }
+
+      function startTimer() {
+        if (hasStarted) return;
+        hasStarted = true;
+        timerId = window.setInterval(() => {
+          seconds += 1;
+          updateStats();
+        }, 1000);
+      }
+
+      function stopTimer() {
+        window.clearInterval(timerId);
+        timerId = null;
+      }
+
+      function selectQuestionSet() {
+        activeQuestionSet = questionSets[Math.floor(Math.random() * questionSets.length)];
+        setIndicator.textContent = `本局隨機題庫：${activeQuestionSet.label} · ${activeQuestionSet.description}`;
+      }
+
+      function getDeck() {
+        return shuffle(activeQuestionSet.pairs.flatMap(pair => [
+          { pairId: pair.id, kind: '展開式', expression: pair.expansion },
+          { pairId: pair.id, kind: '因式分解', expression: pair.factor }
+        ]));
+      }
+
+      function createCard(card, position) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'math-card';
+        button.dataset.pairId = String(card.pairId);
+        button.dataset.kind = card.kind;
+        button.setAttribute('aria-label', `第 ${position + 1} 張卡牌，尚未翻開`);
+        button.innerHTML = `
+          <div class="card-inner">
+            <div class="card-face card-front" aria-hidden="true">
+              <div class="front-symbol">ƒ</div>
+              <span class="front-label">FACTOR MATCH</span>
+            </div>
+            <div class="card-face card-back">
+              <span class="card-badge">${card.kind === '展開式' ? '展' : '因'}</span>
+              <div class="formula">${card.expression}</div>
+              <span class="matched-check" aria-hidden="true">✓</span>
+            </div>
+          </div>`;
+        button.addEventListener('click', () => flipCard(button));
+        return button;
+      }
+
+      async function renderMath() {
+        if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+          await window.MathJax.typesetPromise([grid]);
+        }
+      }
+
+      async function newGame() {
+        if (!student.name) {
+          showStudentModal();
+          return;
+        }
+        window.clearTimeout(mismatchTimeout);
+        stopTimer();
+        openCards = [];
+        cards = [];
+        moves = 0;
+        matches = 0;
+        seconds = 0;
+        hasStarted = false;
+        isLocked = false;
+        selectQuestionSet();
+        hint.textContent = `本局已隨機抽取${activeQuestionSet.label}。每回合翻開兩張卡牌，判斷它們是否為同一題的展開式與因式分解。`;
+        updateStats();
+        hideModal();
+
+        grid.replaceChildren();
+        const deck = getDeck();
+        deck.forEach((card, index) => {
+          const scene = document.createElement('div');
+          scene.className = 'card-scene';
+          scene.appendChild(createCard(card, index));
+          grid.appendChild(scene);
+        });
+        cards = [...grid.querySelectorAll('.math-card')];
+        await renderMath();
+      }
+
+      function flipCard(card) {
+        if (isLocked || card.classList.contains('is-flipped') || card.classList.contains('is-matched')) return;
+
+        startTimer();
+        card.classList.add('is-flipped');
+        card.setAttribute('aria-label', `${card.dataset.kind}卡牌，已翻開`);
+        openCards.push(card);
+
+        if (openCards.length === 2) {
+          moves += 1;
+          updateStats();
+          checkPair();
+        }
+      }
+
+      function checkPair() {
+        const [first, second] = openCards;
+        const isPair = first.dataset.pairId === second.dataset.pairId && first.dataset.kind !== second.dataset.kind;
+
+        if (isPair) {
+          first.classList.add('is-matched');
+          second.classList.add('is-matched');
+          first.setAttribute('aria-label', `${first.dataset.kind}卡牌，已成功配對`);
+          second.setAttribute('aria-label', `${second.dataset.kind}卡牌，已成功配對`);
+          matches += 1;
+          openCards = [];
+          updateStats();
+          hint.textContent = matches === 8 ? '全部配對完成！' : '配對成功！繼續找下一組。';
+          if (matches === 8) {
+            stopTimer();
+            window.setTimeout(showWinModal, 450);
+          }
+          return;
+        }
+
+        isLocked = true;
+        hint.textContent = '再看一下！這兩張卡會在 1.5 秒後自動蓋上。';
+        mismatchTimeout = window.setTimeout(() => {
+          first.classList.remove('is-flipped');
+          second.classList.remove('is-flipped');
+          first.setAttribute('aria-label', '卡牌，尚未翻開');
+          second.setAttribute('aria-label', '卡牌，尚未翻開');
+          openCards = [];
+          isLocked = false;
+          hint.textContent = '提示：每回合翻開兩張卡牌，判斷它們是否為同一題的展開式與因式分解。';
+        }, 1500);
+      }
+
+      function showWinModal() {
+        finalTime.textContent = formatTime(seconds);
+        finalMoves.textContent = String(moves);
+        winStudentName.textContent = student.name;
+        const leaderboardResult = recordScore();
+        performanceMessage.textContent = moves === 8
+          ? '完美表現！每一回合都精準配對。'
+          : moves <= 12
+            ? '很棒的推理力！你已掌握進階因式分解。'
+            : '完成挑戰就是勝利，再試一次可挑戰更少步數。';
+        leaderboardMessage.textContent = !leaderboardResult.saved
+          ? '本次成績已完成，但瀏覽器無法儲存排行榜。'
+          : leaderboardResult.rank
+            ? `太棒了！你目前排名雲端排行榜第 ${leaderboardResult.rank} 名。`
+            : leaderboardResult.personalBest
+              ? '本次成績已完成，尚未進入雲端前五名排行榜。'
+              : '本次成績未超越你的個人最佳紀錄，排行榜維持不變。';
+        modal.classList.add('modal-show');
+        playAgainBtn.focus();
+      }
+
+      function hideModal() {
+        modal.classList.remove('modal-show');
+      }
+
+      function showStudentModal() {
+        studentModal.classList.add('modal-show');
+        window.setTimeout(() => studentNameInput.focus(), 180);
+      }
+
+      function hideStudentModal() {
+        studentModal.classList.remove('modal-show');
+      }
+
+      studentForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const name = studentNameInput.value.trim();
+        const className = studentClassInput.value.trim();
+        const id = studentIdInput.value.trim();
+
+        if (!name || !className || !id) {
+          formError.textContent = '請完整填寫姓名、班別和學號後再開始。';
+          formError.classList.remove('hidden');
+          (!name ? studentNameInput : !className ? studentClassInput : studentIdInput).focus();
+          return;
+        }
+
+        student = { name, className, id };
+        formError.classList.add('hidden');
+        profileSummary.textContent = `學生：${student.name} · 班別：${student.className} · 學號：${student.id}`;
+        profileSummary.classList.remove('hidden');
+        hideStudentModal();
+        newGame();
+      });
+
+      teacherBtn.addEventListener('click', () => showTeacherAccessModal());
+      teacherAccessForm.addEventListener('submit', handleTeacherAccess);
+      teacherAccessCancel.addEventListener('click', () => {
+        hideTeacherAccessModal();
+        if (returnToDashboardAfterAccess) {
+          returnToDashboardAfterAccess = false;
+          showTeacherDashboard();
+        }
+      });
+      closeTeacherDashboardBtn.addEventListener('click', hideTeacherDashboard);
+      teacherDashboardModal.addEventListener('click', (event) => {
+        if (event.target === teacherDashboardModal) hideTeacherDashboard();
+      });
+      exportCsvBtn.addEventListener('click', exportHistoryCsv);
+      changeTeacherPasswordBtn.addEventListener('click', () => {
+        returnToDashboardAfterAccess = true;
+        hideTeacherDashboard();
+        showTeacherAccessModal('change');
+      });
+      restartBtn.addEventListener('click', newGame);
+      playAgainBtn.addEventListener('click', newGame);
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) hideModal();
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (teacherAccessModal.classList.contains('modal-show')) {
+          hideTeacherAccessModal();
+          if (returnToDashboardAfterAccess) {
+            returnToDashboardAfterAccess = false;
+            showTeacherDashboard();
+          }
+        } else if (teacherDashboardModal.classList.contains('modal-show')) {
+          hideTeacherDashboard();
+        } else if (modal.classList.contains('modal-show')) {
+          hideModal();
+        }
+      });
+
+      window.addEventListener('load', () => {
+        renderLeaderboard();
+        renderHistoryTable();
+        showStudentModal();
+
+        // 實時監聽 Firebase 雲端排行榜
+        if (typeof database !== 'undefined' && database) {
+          database.ref('scores').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+              const cloudHistory = Object.values(data);
+              saveHistory(cloudHistory);
+              renderLeaderboard();
+              renderHistoryTable();
+            }
+          });
+        }
+      }, { once: true });
+    })();
+  </script>
+</body>
+</html>
