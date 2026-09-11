@@ -27,23 +27,9 @@
     };
   </script>
 
-  <!-- Firebase SDK & 初始化 -->
+  <!-- Firebase 資料庫套件 -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyC92X...",
-      authDomain: "factorization-card-game.firebaseapp.com",
-      databaseURL: "https://factorization-card-game-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "factorization-card-game",
-      storageBucket: "factorization-card-game.firebasestorage.app",
-      messagingSenderId: "453669676484",
-      appId: "1:453669676484:web:14c5463402a343b8997091"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-  </script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
   <!-- MathJax for precise mathematical notation -->
   <script>
@@ -86,6 +72,7 @@
       min-width: 0;
       aspect-ratio: 1 / .94;
       perspective: 1000px;
+      -webkit-perspective: 1000px;
     }
 
     .math-card {
@@ -109,12 +96,15 @@
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
       transition: transform 620ms cubic-bezier(.2, .76, .25, 1);
+      will-change: transform;
     }
 
     .math-card.is-flipped .card-inner,
     .math-card.is-matched .card-inner {
       transform: rotateY(180deg);
+      -webkit-transform: rotateY(180deg);
     }
 
     .card-face {
@@ -139,19 +129,18 @@
       box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 9px 16px rgba(16,42,86,.17);
     }
 
+    .card-back {
+      transform: rotateY(180deg);
+      -webkit-transform: rotateY(180deg);
+      background: #ffffff;
+      border: 2px solid #1b4b91;
+      padding: .5rem;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 9px 16px rgba(16,42,86,.17);
+    }
+
     .math-card:not(.is-flipped):not(.is-matched):hover .card-front {
       transform: translateY(-3px);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 16px 24px rgba(16,42,86,.25);
-    }
-
-    .card-back {
-      flex-direction: column;
-      padding: .6rem;
-      color: var(--ink);
-      background: #fff;
-      border: 2px solid #d5e5fa;
-      box-shadow: 0 10px 18px rgba(16,42,86,.12);
-      transform: rotateY(180deg);
     }
 
     .math-card.is-matched .card-back {
@@ -167,6 +156,7 @@
       display: flex;
       width: 100%;
       min-height: 0;
+      min-width: 0;
       align-items: center;
       justify-content: center;
       text-align: center;
@@ -176,7 +166,44 @@
 
     .formula mjx-container {
       max-width: 100%;
+      min-width: 0;
+      margin: 0 !important;
       overflow: visible;
+    }
+
+    @media (max-width: 639px) {
+      #cardGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .7rem;
+      }
+
+      .card-scene {
+        aspect-ratio: 1 / .74;
+      }
+
+      .card-back {
+        padding: .45rem .3rem;
+      }
+
+      .formula {
+        padding: 1.15rem .05rem .3rem;
+        font-size: clamp(.72rem, 3.2vw, .98rem);
+      }
+
+      .card-badge {
+        top: .32rem;
+        left: .34rem;
+        width: 1.1rem;
+        height: 1.1rem;
+        font-size: .58rem;
+      }
+
+      .matched-check {
+        right: .34rem;
+        bottom: .3rem;
+        width: 1.1rem;
+        height: 1.1rem;
+      }
     }
 
     .card-badge {
@@ -251,6 +278,115 @@
       transform: scale(1) translateY(0) !important;
     }
 
+    .math-card.is-locked {
+      cursor: not-allowed;
+      filter: saturate(.55) brightness(.92);
+    }
+
+    .math-card.is-locked .card-front {
+      background:
+        linear-gradient(145deg, rgba(19, 55, 104, .97), rgba(9, 30, 67, .99));
+    }
+
+    .math-card.is-locked .front-symbol {
+      color: rgba(255,255,255,.65);
+      border-style: dashed;
+      font-size: clamp(1.2rem, 3.2vw, 1.75rem);
+    }
+
+    .locked-label {
+      position: absolute;
+      top: 14%;
+      display: none;
+      max-width: 88%;
+      text-align: center;
+      color: rgba(255,255,255,.85);
+      font-size: .62rem;
+      font-weight: 900;
+      letter-spacing: .1em;
+    }
+
+    .math-card.is-locked .locked-label { display: block; }
+
+    .learning-stage {
+      display: flex;
+      min-width: 0;
+      flex: 1 1 7rem;
+      align-items: center;
+      gap: .55rem;
+      padding: .65rem;
+      border: 1px solid #dbeafe;
+      border-radius: .75rem;
+      background: #fff;
+      color: #64748b;
+    }
+
+    .learning-stage-number {
+      display: grid;
+      flex: 0 0 auto;
+      place-items: center;
+      width: 1.6rem;
+      height: 1.6rem;
+      border-radius: 9999px;
+      font-size: .72rem;
+      font-weight: 900;
+      color: #64748b;
+      background: #e2e8f0;
+    }
+
+    .learning-stage.is-active {
+      border-color: #6da8ee;
+      background: #eff6ff;
+      color: #173f7a;
+    }
+
+    .learning-stage.is-active .learning-stage-number {
+      color: #fff;
+      background: #1b4b91;
+    }
+
+    .learning-stage.is-complete {
+      border-color: #8fd5b1;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .learning-stage.is-complete .learning-stage-number {
+      color: #fff;
+      background: #229d63;
+    }
+
+    .feedback-panel {
+      border: 1px solid #dbeafe;
+      background: #f8fbff;
+      color: #334155;
+    }
+
+    .feedback-panel[data-state="correct"] {
+      border-color: #9ae6b4;
+      background: #f0fdf4;
+      color: #14532d;
+    }
+
+    .feedback-panel[data-state="incorrect"] {
+      border-color: #fecaca;
+      background: #fff7f7;
+      color: #991b1b;
+    }
+
+    .feedback-panel[data-state="hint"] {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+      color: #173f7a;
+    }
+
+    .rating-choice[aria-pressed="true"] {
+      color: #fff;
+      border-color: #1b4b91;
+      background: #1b4b91;
+      box-shadow: 0 4px 10px rgba(27,75,145,.22);
+    }
+
     @media (max-width: 400px) {
       .card-face { border-radius: .75rem; }
       .card-back { padding: .3rem; }
@@ -283,13 +419,16 @@
         <button id="teacherBtn" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white/90 px-4 py-3 text-sm font-extrabold text-ocean shadow-sm transition hover:-translate-y-0.5 hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-200 active:translate-y-0">
           <span aria-hidden="true">⌘</span> 教師後台
         </button>
+        <button id="changeDifficultyBtn" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white/90 px-4 py-3 text-sm font-extrabold text-ocean shadow-sm transition hover:-translate-y-0.5 hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-200 active:translate-y-0">
+          <span aria-hidden="true">◈</span> 更改難度
+        </button>
         <button id="restartBtn" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-extrabold text-white shadow-card transition hover:-translate-y-0.5 hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300 active:translate-y-0">
           <span aria-hidden="true">↻</span> 重新開始
         </button>
       </div>
     </header>
 
-    <section aria-label="遊戲狀態" class="mb-5 grid grid-cols-3 overflow-hidden rounded-2xl border border-blue-100 bg-white/90 shadow-card sm:mb-7">
+    <section aria-label="遊戲狀態" class="mb-5 grid grid-cols-3 overflow-hidden rounded-2xl border border-blue-100 bg-white/90 shadow-card sm:mb-5">
       <div class="border-r border-blue-100 px-3 py-3 text-center sm:px-6 sm:py-4">
         <div class="text-[.64rem] font-extrabold tracking-[.12em] text-slate-500 sm:text-xs">經過時間</div>
         <div id="timeValue" class="stat-value mt-1 text-xl font-black text-ink sm:text-2xl">00:00</div>
@@ -304,19 +443,43 @@
       </div>
     </section>
 
+    <section aria-labelledby="learningTitle" class="mb-5 rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-card sm:p-5">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p class="text-xs font-extrabold tracking-[.14em] text-ocean">LEARNING PATH</p>
+          <h2 id="learningTitle" class="mt-1 text-xl font-black text-ink">螺旋式因式分解挑戰</h2>
+          <p id="learningObjective" class="mt-1 text-sm font-medium text-slate-600">完成資料登記後，系統會由基礎方法逐步解鎖至綜合應用。</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <label for="supportLevel" class="text-xs font-extrabold text-slate-600">難度與提示</label>
+          <select id="supportLevel" class="rounded-xl border border-blue-200 bg-sky px-3 py-2 text-sm font-bold text-ink outline-none focus:border-ocean focus:ring-4 focus:ring-blue-100">
+            <option value="guided">引導模式：顯示步驟提示</option>
+            <option value="practice">練習模式：按「查看提示」</option>
+            <option value="challenge">挑戰模式：只顯示方法名稱</option>
+          </select>
+          <button id="hintBtn" type="button" class="rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100">查看提示</button>
+        </div>
+      </div>
+      <div id="learningPath" class="mt-4 flex flex-wrap gap-2" aria-label="難度學習路徑"></div>
+    </section>
+
     <section aria-label="因式分解配對卡牌" class="flex-1">
       <div class="mb-3 flex justify-center">
         <span id="setIndicator" class="rounded-full border border-blue-100 bg-white/75 px-3 py-1 text-xs font-bold text-slate-500">完成資料登記後開始挑戰</span>
       </div>
       <div id="cardGrid" class="grid grid-cols-4 gap-2.5 sm:gap-4"></div>
-      <p id="gameHint" class="mt-5 text-center text-sm font-medium text-slate-500">提示：每回合翻開兩張卡牌，判斷它們是否為同一題的展開式與因式分解。</p>
+      <div id="feedbackPanel" class="feedback-panel mt-5 rounded-2xl p-4 text-center shadow-sm" data-state="neutral" aria-live="polite">
+        <p id="feedbackTitle" class="font-extrabold text-ink">準備開始</p>
+        <p id="feedbackText" class="mt-1 text-sm font-medium leading-6">每一波會同時開放 8 張卡（4 對）。選擇一個展開式與一個因式分解後，還要用「共同因式、恆等式或分組」判斷所用方法。</p>
+      </div>
+      <p id="gameHint" class="mt-3 text-center text-sm font-medium text-slate-500">提示：每回合翻開兩張卡牌，判斷它們是否為同一題的展開式與因式分解。</p>
     </section>
 
     <section aria-labelledby="leaderboardTitle" class="mt-7 overflow-hidden rounded-2xl border border-blue-100 bg-white/90 shadow-card">
       <div class="flex flex-col gap-1 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p class="text-xs font-extrabold tracking-[.14em] text-ocean">CLOUD TOP 5</p>
-          <h2 id="leaderboardTitle" class="mt-1 text-xl font-black text-ink">雲端排行榜 (Hall of Fame)</h2>
+          <p class="text-xs font-extrabold tracking-[.14em] text-ocean">LOCAL TOP 5</p>
+          <h2 id="leaderboardTitle" class="mt-1 text-xl font-black text-ink">計分排行榜</h2>
         </div>
         <p class="text-xs font-semibold text-slate-500">時間優先；同時以步數較少者排名較前</p>
       </div>
@@ -335,7 +498,7 @@
           <tbody id="leaderboardRows" class="divide-y divide-blue-50"></tbody>
         </table>
       </div>
-      <p id="leaderboardNote" class="border-t border-blue-50 px-5 py-3 text-center text-xs font-medium text-slate-500">所有通關紀錄已實時同步至 Firebase 雲端資料庫。</p>
+      <p id="leaderboardNote" class="border-t border-blue-50 px-5 py-3 text-center text-xs font-medium text-slate-500">所有通關紀錄儲存於此瀏覽器的 localStorage；排行榜按每位學生的最佳成績計算。</p>
     </section>
 
     <footer class="mt-6 text-center text-xs font-medium text-slate-400">卡牌配對大師 · 進階因式分解練習</footer>
@@ -346,22 +509,36 @@
       <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-100 to-blue-300 text-2xl shadow-sm" aria-hidden="true">✦</div>
       <p class="mt-5 text-center text-xs font-extrabold tracking-[.16em] text-ocean">PLAYER CHECK-IN</p>
       <h2 id="studentTitle" class="mt-2 text-center text-3xl font-black text-ink">開始前，先登記資料</h2>
-      <p class="mt-2 text-center text-sm leading-6 text-slate-600">請填寫以下資料；完成遊戲後，成績會同步發布至全班雲端英雄榜。</p>
+      <p id="studentModalDescription" class="mt-2 text-center text-sm leading-6 text-slate-600">請填寫以下資料；完成遊戲後，成績會儲存在此瀏覽器的本機排行榜，不會上傳。</p>
       <form id="studentForm" class="mt-6 space-y-4" novalidate>
-        <div>
-          <label for="studentName" class="mb-1.5 block text-sm font-extrabold text-ink">姓名</label>
-          <input id="studentName" name="studentName" type="text" autocomplete="name" required maxlength="40" placeholder="例：陳小明" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+        <div id="studentIdentityFields" class="space-y-4">
+          <div>
+            <label for="studentName" class="mb-1.5 block text-sm font-extrabold text-ink">姓名</label>
+            <input id="studentName" name="studentName" type="text" autocomplete="name" required maxlength="40" placeholder="例：陳小明" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+          </div>
+          <div>
+            <label for="studentClass" class="mb-1.5 block text-sm font-extrabold text-ink">班別</label>
+            <input id="studentClass" name="studentClass" type="text" autocomplete="organization" required maxlength="40" placeholder="例：3A" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+          </div>
+          <div>
+            <label for="studentId" class="mb-1.5 block text-sm font-extrabold text-ink">學號</label>
+            <input id="studentId" name="studentId" type="text" inputmode="numeric" autocomplete="off" required maxlength="40" placeholder="例：240301" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+          </div>
         </div>
         <div>
-          <label for="studentClass" class="mb-1.5 block text-sm font-extrabold text-ink">班別</label>
-          <input id="studentClass" name="studentClass" type="text" autocomplete="organization" required maxlength="40" placeholder="例：3A" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
-        </div>
-        <div>
-          <label for="studentId" class="mb-1.5 block text-sm font-extrabold text-ink">學號</label>
-          <input id="studentId" name="studentId" type="text" inputmode="numeric" autocomplete="off" required maxlength="40" placeholder="例：240301" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100" />
+          <label for="gradeLevel" class="mb-1.5 block text-sm font-extrabold text-ink">年級難度</label>
+          <select id="gradeLevel" name="gradeLevel" class="w-full rounded-xl border border-blue-200 bg-sky px-4 py-3 font-bold text-ink outline-none transition focus:border-ocean focus:ring-4 focus:ring-blue-100">
+            <option value="lower">初階（中一程度）</option>
+            <option value="middle" selected>中階（中二程度）</option>
+            <option value="upper">進階（DSE 程度）</option>
+          </select>
+          <p id="gradeLevelNote" class="mt-1.5 text-xs font-medium leading-5 text-slate-500">涵蓋多變數公因式、恆等式與分組法。</p>
         </div>
         <p id="formError" class="hidden rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700" role="alert"></p>
-        <button type="submit" class="mt-2 w-full rounded-xl bg-ink px-5 py-3.5 font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">開始隨機挑戰</button>
+        <div class="mt-2 flex gap-3">
+          <button id="studentModalCancel" type="button" class="hidden flex-1 rounded-xl border border-blue-200 bg-white px-5 py-3.5 font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100">取消並繼續本局</button>
+          <button id="studentSubmitBtn" type="submit" class="flex-1 rounded-xl bg-ink px-5 py-3.5 font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">開始隨機挑戰</button>
+        </div>
       </form>
     </div>
   </div>
@@ -387,6 +564,7 @@
           <button id="teacherAccessSubmit" type="submit" class="flex-1 rounded-xl bg-ink px-4 py-3 font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">進入後台</button>
         </div>
       </form>
+      <p class="mt-4 text-center text-xs leading-5 text-slate-400">此為單一瀏覽器的本機存取碼，不是帳戶級安全機制。</p>
     </div>
   </div>
 
@@ -395,18 +573,72 @@
       <div class="flex flex-col gap-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-extrabold tracking-[.14em] text-ocean">TEACHER DASHBOARD</p>
-          <h2 id="teacherDashboardTitle" class="mt-1 text-2xl font-black text-ink">全班歷史成績紀錄</h2>
+          <h2 id="teacherDashboardTitle" class="mt-1 text-2xl font-black text-ink">學生歷史成績</h2>
           <p id="historyCount" class="mt-1 text-sm font-semibold text-slate-500">共 0 筆通關紀錄</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button id="changeTeacherPasswordBtn" type="button" class="rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100">變更密碼</button>
           <button id="exportCsvBtn" type="button" class="rounded-xl bg-ink px-4 py-2.5 text-sm font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">匯出 CSV</button>
+          <button id="clearFilteredBtn" type="button" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-extrabold text-rose-700 transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100">清除篩選紀錄</button>
           <button id="closeTeacherDashboardBtn" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200">關閉</button>
         </div>
       </div>
       <div class="overflow-auto p-5">
-        <div class="overflow-x-auto rounded-2xl border border-blue-100">
-          <table class="w-full min-w-[780px] text-left text-sm">
+        <section aria-labelledby="filterTitle" class="rounded-2xl border border-blue-100 bg-sky/60 p-4">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 id="filterTitle" class="text-sm font-extrabold text-ink">篩選與管理</h3>
+              <p id="filterSummary" class="mt-1 text-xs font-medium text-slate-500">顯示全部通關紀錄。</p>
+            </div>
+            <button id="resetHistoryFiltersBtn" type="button" class="self-start text-xs font-extrabold text-ocean underline decoration-blue-200 underline-offset-4 hover:text-ink">重設篩選</button>
+          </div>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <label class="block text-xs font-extrabold text-slate-600">搜尋學生／學號
+              <input id="historySearch" type="search" placeholder="姓名或學號" class="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-ink outline-none focus:border-ocean focus:ring-4 focus:ring-blue-100" />
+            </label>
+            <label class="block text-xs font-extrabold text-slate-600">班別
+              <select id="historyClassFilter" class="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-bold text-ink outline-none focus:border-ocean focus:ring-4 focus:ring-blue-100">
+                <option value="all">全部班別</option>
+              </select>
+            </label>
+            <label class="block text-xs font-extrabold text-slate-600">題庫
+              <select id="historySetFilter" class="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-bold text-ink outline-none focus:border-ocean focus:ring-4 focus:ring-blue-100">
+                <option value="all">全部題庫</option>
+              </select>
+            </label>
+            <label class="block text-xs font-extrabold text-slate-600">年級難度
+              <select id="historyGradeFilter" class="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-bold text-ink outline-none focus:border-ocean focus:ring-4 focus:ring-blue-100">
+                <option value="all">全部難度</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section aria-labelledby="analyticsTitle" class="mt-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs font-extrabold tracking-[.14em] text-ocean">CLASS INSIGHTS</p>
+              <h3 id="analyticsTitle" class="mt-1 text-lg font-black text-ink">班級整體表現與常見錯誤</h3>
+            </div>
+            <p class="text-xs font-semibold text-slate-500">依目前篩選結果計算</p>
+          </div>
+          <div id="analyticsSummary" class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+          <div class="mt-4 grid gap-4 lg:grid-cols-2">
+            <article class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+              <h4 class="text-sm font-extrabold text-ink">班別平均通關時間</h4>
+              <p class="mt-1 text-xs leading-5 text-slate-500">每條橫幅代表該班在目前篩選結果中的平均秒數；越短代表越快。</p>
+              <div id="classPerformanceChart" class="mt-4 space-y-3"></div>
+            </article>
+            <article class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+              <h4 class="text-sm font-extrabold text-ink">常見錯誤分析</h4>
+              <p class="mt-1 text-xs leading-5 text-slate-500">彙總各學習階段的錯配與方法誤判，協助找出下一個複習焦點。</p>
+              <div id="errorAnalysisChart" class="mt-4 space-y-3"></div>
+            </article>
+          </div>
+        </section>
+
+        <div class="overflow-x-auto rounded-2xl border border-blue-100 mt-5">
+          <table class="w-full min-w-[1120px] text-left text-sm">
             <thead class="sticky top-0 bg-sky text-xs font-extrabold tracking-wide text-slate-500">
               <tr>
                 <th scope="col" class="px-4 py-3">完成日期與時間</th>
@@ -414,8 +646,12 @@
                 <th scope="col" class="px-4 py-3">班別</th>
                 <th scope="col" class="px-4 py-3">學號</th>
                 <th scope="col" class="px-4 py-3">題庫</th>
+                <th scope="col" class="px-4 py-3">年級難度</th>
+                <th scope="col" class="px-4 py-3">學習支援</th>
                 <th scope="col" class="px-4 py-3 text-right">通關時間</th>
                 <th scope="col" class="px-4 py-3 text-right">步數</th>
+                <th scope="col" class="px-4 py-3 text-right">提示／錯配／方法</th>
+                <th scope="col" class="px-4 py-3">自評</th>
               </tr>
             </thead>
             <tbody id="historyRows" class="divide-y divide-blue-50"></tbody>
@@ -426,8 +662,20 @@
     </div>
   </div>
 
-  <div id="winModal" class="fixed inset-0 z-20 flex items-center justify-center bg-slate-950/45 p-4 opacity-0 pointer-events-none transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="winTitle">
-    <div class="w-full max-w-md -translate-y-3 scale-95 rounded-3xl border border-white/70 bg-white p-7 text-center shadow-2xl transition duration-300 sm:p-9">
+  <div id="methodModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4 opacity-0 pointer-events-none transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="methodModalTitle">
+    <div class="w-full max-w-xl -translate-y-3 scale-95 rounded-3xl border border-white/70 bg-white p-6 shadow-2xl transition duration-300 sm:p-8">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-amber-100 to-gold text-2xl shadow-sm" aria-hidden="true">✓</div>
+      <p class="mt-4 text-center text-xs font-extrabold tracking-[.16em] text-ocean">METHOD CHECK</p>
+      <h2 id="methodModalTitle" class="mt-2 text-center text-2xl font-black text-ink">配對正確，還差一步！</h2>
+      <p id="methodPairPrompt" class="mt-3 text-center text-sm leading-6 text-slate-600">請選擇這一對卡牌使用的因式分解方法。</p>
+      <div id="methodOptions" class="mt-5 grid gap-2 sm:grid-cols-2"></div>
+      <p id="methodFeedback" class="mt-4 min-h-6 text-center text-sm font-bold text-ocean" aria-live="polite"></p>
+      <p class="mt-3 text-center text-xs leading-5 text-slate-500">答對方法才會計入成功配對；若答錯，請重新比較這兩張卡的結構。</p>
+    </div>
+  </div>
+
+  <div id="winModal" class="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4 opacity-0 pointer-events-none transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+    <div class="my-auto w-full max-w-lg -translate-y-3 scale-95 rounded-3xl border border-white/70 bg-white p-7 text-center shadow-2xl transition duration-300 sm:p-9">
       <div class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-amber-200 to-gold text-3xl shadow-lg" aria-hidden="true">★</div>
       <p class="mt-5 text-sm font-extrabold tracking-[.16em] text-ocean">CHALLENGE COMPLETE</p>
       <h2 id="winTitle" class="mt-2 text-3xl font-black text-ink">恭喜通關！</h2>
@@ -444,6 +692,25 @@
       </div>
       <p id="performanceMessage" class="mt-5 text-sm font-semibold text-ocean"></p>
       <p id="leaderboardMessage" class="mt-2 min-h-5 text-sm font-bold text-emerald-700" aria-live="polite"></p>
+      <section aria-labelledby="learningSummaryTitle" class="mt-5 rounded-2xl border border-blue-100 bg-sky p-4 text-left">
+        <h3 id="learningSummaryTitle" class="text-sm font-extrabold text-ink">本局學習摘要</h3>
+        <div id="learningSummary" class="mt-3 grid gap-2 text-sm"></div>
+      </section>
+      <section aria-labelledby="reflectionTitle" class="mt-4 rounded-2xl border border-blue-100 p-4 text-left">
+        <h3 id="reflectionTitle" class="text-sm font-extrabold text-ink">自我評估</h3>
+        <p class="mt-1 text-xs leading-5 text-slate-500">完成後，你對「選擇適合的因式分解方法」有多大把握？</p>
+        <div class="mt-3 grid grid-cols-3 gap-2">
+          <button type="button" class="rating-choice rounded-xl border border-blue-200 bg-white px-2 py-2 text-xs font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100" data-rating="需要再練習" aria-pressed="false">需要再練習</button>
+          <button type="button" class="rating-choice rounded-xl border border-blue-200 bg-white px-2 py-2 text-xs font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100" data-rating="大致掌握" aria-pressed="false">大致掌握</button>
+          <button type="button" class="rating-choice rounded-xl border border-blue-200 bg-white px-2 py-2 text-xs font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100" data-rating="很有把握" aria-pressed="false">很有把握</button>
+        </div>
+        <label for="reflectionNote" class="mt-3 block text-xs font-bold text-slate-600">我下一步想加強／已學會的重點（選填）</label>
+        <textarea id="reflectionNote" maxlength="200" rows="2" placeholder="例：我會先找最大公因式，再檢查能否使用平方差公式。" class="mt-1.5 w-full resize-none rounded-xl border border-blue-200 bg-sky px-3 py-2 text-sm text-ink outline-none placeholder:text-slate-400 focus:border-ocean focus:bg-white focus:ring-4 focus:ring-blue-100"></textarea>
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <p id="reflectionStatus" class="text-xs font-bold text-slate-500" aria-live="polite"></p>
+          <button id="saveReflectionBtn" type="button" class="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-extrabold text-ocean transition hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100">儲存評估</button>
+        </div>
+      </section>
       <button id="playAgainBtn" type="button" class="mt-6 w-full rounded-xl bg-ink px-5 py-3.5 font-extrabold text-white shadow-card transition hover:bg-ocean focus:outline-none focus:ring-4 focus:ring-blue-300">再玩一次</button>
     </div>
   </div>
@@ -454,8 +721,10 @@
 
       const questionSets = [
         {
+          id: 'A',
           label: '題庫 A',
-          description: '第一組進階因式分解題目',
+          description: '標準進階：多變數與恆等式',
+          difficulty: '標準進階',
           pairs: [
             { id: 1, expansion: String.raw`\(12x^2y - 18xy^2\)`, factor: String.raw`\(6xy(2x - 3y)\)` },
             { id: 2, expansion: String.raw`\(-5a^3 + 15a^2\)`, factor: String.raw`\(-5a^2(a - 3)\)` },
@@ -468,8 +737,10 @@
           ]
         },
         {
+          id: 'B',
           label: '題庫 B',
-          description: '第二組進階因式分解題目',
+          description: '標準進階：多項式與分組法',
+          difficulty: '標準進階',
           pairs: [
             { id: 1, expansion: String.raw`\(14a^2b^3 + 21a^3b^2\)`, factor: String.raw`\(7a^2b^2(2b + 3a)\)` },
             { id: 2, expansion: String.raw`\(-4p^2q - 12pq^2\)`, factor: String.raw`\(-4pq(p + 3q)\)` },
@@ -480,6 +751,87 @@
             { id: 7, expansion: String.raw`\(3am - 3an - 2bm + 2bn\)`, factor: String.raw`\((3a-2b)(m-n)\)` },
             { id: 8, expansion: String.raw`\(y(2y+1) + 4(2y+1)\)`, factor: String.raw`\((2y+1)(y+4)\)` }
           ]
+        },
+        {
+          id: 'C',
+          label: '題庫 C',
+          description: '基礎鞏固：入門公因式與公式',
+          difficulty: '基礎鞏固',
+          pairs: [
+            { id: 1, expansion: String.raw`\(8x^2 - 12x\)`, factor: String.raw`\(4x(2x-3)\)` },
+            { id: 2, expansion: String.raw`\(15ab + 20a\)`, factor: String.raw`\(5a(3b+4)\)` },
+            { id: 3, expansion: String.raw`\(25x^2 - 4\)`, factor: String.raw`\((5x-2)(5x+2)\)` },
+            { id: 4, expansion: String.raw`\(x^2 + 10x + 25\)`, factor: String.raw`\((x+5)^2\)` },
+            { id: 5, expansion: String.raw`\(2x^2 - 18\)`, factor: String.raw`\(2(x-3)(x+3)\)` },
+            { id: 6, expansion: String.raw`\(x^2 + 3x + 2x + 6\)`, factor: String.raw`\((x+3)(x+2)\)` },
+            { id: 7, expansion: String.raw`\(3ax - 3ay + 2bx - 2by\)`, factor: String.raw`\((3a+2b)(x-y)\)` },
+            { id: 8, expansion: String.raw`\(4m(m+1) - 3(m+1)\)`, factor: String.raw`\((m+1)(4m-3)\)` }
+          ]
+        },
+        {
+          id: 'D',
+          label: '題庫 D',
+          description: '挑戰延伸：高次式與綜合分組',
+          difficulty: '挑戰延伸',
+          pairs: [
+            { id: 1, expansion: String.raw`\(18a^3b - 24a^2b^2\)`, factor: String.raw`\(6a^2b(3a-4b)\)` },
+            { id: 2, expansion: String.raw`\(-14x^2y + 21xy^2\)`, factor: String.raw`\(-7xy(2x-3y)\)` },
+            { id: 3, expansion: String.raw`\(81p^4 - 16q^4\)`, factor: String.raw`\((3p-2q)(3p+2q)(9p^2+4q^2)\)` },
+            { id: 4, expansion: String.raw`\(4x^2 + 20xy + 25y^2\)`, factor: String.raw`\((2x+5y)^2\)` },
+            { id: 5, expansion: String.raw`\(6t^3 - 54t\)`, factor: String.raw`\(6t(t-3)(t+3)\)` },
+            { id: 6, expansion: String.raw`\(ax + ay - bx - by\)`, factor: String.raw`\((a-b)(x+y)\)` },
+            { id: 7, expansion: String.raw`\(4mr - 4ms + 3nr - 3ns\)`, factor: String.raw`\((4m+3n)(r-s)\)` },
+            { id: 8, expansion: String.raw`\((u+2)(u-1) - 5(u+2)\)`, factor: String.raw`\((u+2)(u-6)\)` }
+          ]
+        }
+      ];
+
+      const gradeSettings = [
+        { id: 'lower', label: '初階（中一程度）', note: '著重公因式、基本平方差與分組入門，使用題庫 C。', questionSetIds: ['C'] },
+        { id: 'middle', label: '中階（中二程度）', note: '涵蓋多變數公因式、恆等式與分組法，隨機使用題庫 A 或 B。', questionSetIds: ['A', 'B'] },
+        { id: 'upper', label: '進階（DSE 程度）', note: '加入高次平方差、綜合分組與較長的式子，隨機使用題庫 A、B 或 D。', questionSetIds: ['A', 'B', 'D'] }
+      ];
+
+      const legacyGradeLabels = {
+        open: '舊版自主混合（全部題庫）'
+      };
+
+      const factorizationMethods = [
+        { id: 'gcf', label: '提取最大公因式', description: '先找所有項共有的數字與字母因子。' },
+        { id: 'difference', label: '平方差公式', description: '辨認兩個平方項相減，可拆成共軛二項式。' },
+        { id: 'perfect-square', label: '完全平方公式', description: '檢查首尾平方項與正、負 2AB 的中間項。' },
+        { id: 'gcf-difference', label: '先提公因式，再用平方差', description: '先整理共同因子，才能看出平方差。' },
+        { id: 'grouping', label: '分組法', description: '將各項分組，抽出共同二項式。' },
+        { id: 'binomial-gcf', label: '提取二項式公因式', description: '把重複出現的括號視為整體。' }
+      ];
+
+      const pairMethodMap = {
+        A: ['gcf', 'gcf', 'difference', 'perfect-square', 'gcf-difference', 'grouping', 'grouping', 'binomial-gcf'],
+        B: ['gcf', 'gcf', 'difference', 'perfect-square', 'gcf-difference', 'grouping', 'grouping', 'binomial-gcf'],
+        C: ['gcf', 'gcf', 'difference', 'perfect-square', 'gcf-difference', 'grouping', 'grouping', 'binomial-gcf'],
+        D: ['gcf', 'gcf', 'difference', 'perfect-square', 'gcf-difference', 'grouping', 'grouping', 'binomial-gcf']
+      };
+
+      const learningStages = [
+        {
+          id: 1,
+          title: '結構辨認',
+          shortTitle: '八卡辨識',
+          objective: '同時比較 4 對卡牌，分辨最大公因式、平方差與完全平方結構，而不是依靠最後兩張卡猜答案。',
+          method: '共同因式與乘法公式',
+          steps: '步驟：① 先看每項有否共同因子；② 再檢查首尾是否為平方項；③ 平方差可寫成兩個共軛因式，完全平方要檢查中間項。',
+          success: '配對正確！你先找到了相對應的展開式與因式分解；接著仍要答對使用的方法，才會計入完成。',
+          correction: '尚未配對。先比較共同因式、平方項與中間項，不要因為只剩幾張卡便以排除法猜測。'
+        },
+        {
+          id: 2,
+          title: '綜合方法遷移',
+          shortTitle: '八卡綜合',
+          objective: '在另一組 4 對卡牌中，辨認先提公因式、分組法與二項式公因式等較長的結構。',
+          method: '混合分解、分組與二項式公因式',
+          steps: '步驟：① 先問「能否提出公因式？」；② 留意是否可再用平方差；③ 將重複的二項式視為整體，再用分組法驗算。',
+          success: '配對正確！你已辨認出綜合結構；請用方法確認來證明不是只靠外觀或排除法。',
+          correction: '尚未配對。較長的式子先整理結構；找出重複括號或可分組的項，才選擇最有效的方法。'
         }
       ];
 
@@ -492,15 +844,27 @@
       const finalTime = document.getElementById('finalTime');
       const finalMoves = document.getElementById('finalMoves');
       const performanceMessage = document.getElementById('performanceMessage');
+      const methodModal = document.getElementById('methodModal');
+      const methodPairPrompt = document.getElementById('methodPairPrompt');
+      const methodOptions = document.getElementById('methodOptions');
+      const methodFeedback = document.getElementById('methodFeedback');
       const restartBtn = document.getElementById('restartBtn');
+      const changeDifficultyBtn = document.getElementById('changeDifficultyBtn');
       const playAgainBtn = document.getElementById('playAgainBtn');
       const profileSummary = document.getElementById('profileSummary');
       const setIndicator = document.getElementById('setIndicator');
       const studentModal = document.getElementById('studentModal');
       const studentForm = document.getElementById('studentForm');
+      const studentTitle = document.getElementById('studentTitle');
+      const studentModalDescription = document.getElementById('studentModalDescription');
+      const studentIdentityFields = document.getElementById('studentIdentityFields');
+      const studentModalCancel = document.getElementById('studentModalCancel');
+      const studentSubmitBtn = document.getElementById('studentSubmitBtn');
       const studentNameInput = document.getElementById('studentName');
       const studentClassInput = document.getElementById('studentClass');
       const studentIdInput = document.getElementById('studentId');
+      const gradeLevel = document.getElementById('gradeLevel');
+      const gradeLevelNote = document.getElementById('gradeLevelNote');
       const formError = document.getElementById('formError');
       const winStudentName = document.getElementById('winStudentName');
       const leaderboardRows = document.getElementById('leaderboardRows');
@@ -525,8 +889,30 @@
       const historyCount = document.getElementById('historyCount');
       const historyEmptyState = document.getElementById('historyEmptyState');
       const exportCsvBtn = document.getElementById('exportCsvBtn');
+      const clearFilteredBtn = document.getElementById('clearFilteredBtn');
+      const resetHistoryFiltersBtn = document.getElementById('resetHistoryFiltersBtn');
+      const historySearch = document.getElementById('historySearch');
+      const historyClassFilter = document.getElementById('historyClassFilter');
+      const historySetFilter = document.getElementById('historySetFilter');
+      const historyGradeFilter = document.getElementById('historyGradeFilter');
+      const filterSummary = document.getElementById('filterSummary');
+      const analyticsSummary = document.getElementById('analyticsSummary');
+      const classPerformanceChart = document.getElementById('classPerformanceChart');
+      const errorAnalysisChart = document.getElementById('errorAnalysisChart');
       const closeTeacherDashboardBtn = document.getElementById('closeTeacherDashboardBtn');
       const changeTeacherPasswordBtn = document.getElementById('changeTeacherPasswordBtn');
+      const learningObjective = document.getElementById('learningObjective');
+      const learningPath = document.getElementById('learningPath');
+      const supportLevel = document.getElementById('supportLevel');
+      const hintBtn = document.getElementById('hintBtn');
+      const feedbackPanel = document.getElementById('feedbackPanel');
+      const feedbackTitle = document.getElementById('feedbackTitle');
+      const feedbackText = document.getElementById('feedbackText');
+      const learningSummary = document.getElementById('learningSummary');
+      const ratingChoices = [...document.querySelectorAll('.rating-choice')];
+      const reflectionNote = document.getElementById('reflectionNote');
+      const saveReflectionBtn = document.getElementById('saveReflectionBtn');
+      const reflectionStatus = document.getElementById('reflectionStatus');
 
       let openCards = [];
       let cards = [];
@@ -538,9 +924,35 @@
       let hasStarted = false;
       let mismatchTimeout = null;
       let activeQuestionSet = null;
-      let student = { name: '', className: '', id: '' };
+      let student = { name: '', className: '', id: '', gradeLevel: 'middle' };
+      let studentModalMode = 'checkin';
       let teacherAccessMode = 'login';
       let returnToDashboardAfterAccess = false;
+      let currentStage = 1;
+      let hintsUsed = 0;
+      let incorrectAttempts = 0;
+      let stageIncorrectAttempts = [0, 0];
+      let methodMistakes = 0;
+      let pendingPair = null;
+      let selectedReflection = '';
+      let completedScoreTimestamp = null;
+      let activeModalFocusRestoreElement = null;
+
+      function openModalHelper(targetModal, defaultFocusElement) {
+        activeModalFocusRestoreElement = document.activeElement;
+        targetModal.classList.add('modal-show');
+        if (defaultFocusElement) {
+          window.setTimeout(() => defaultFocusElement.focus(), 180);
+        }
+      }
+
+      function closeModalHelper(targetModal) {
+        targetModal.classList.remove('modal-show');
+        if (activeModalFocusRestoreElement && typeof activeModalFocusRestoreElement.focus === 'function') {
+          activeModalFocusRestoreElement.focus();
+          activeModalFocusRestoreElement = null;
+        }
+      }
 
       function shuffle(array) {
         const copy = [...array];
@@ -555,6 +967,124 @@
         const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
         const secs = (totalSeconds % 60).toString().padStart(2, '0');
         return `${mins}:${secs}`;
+      }
+
+      function getGradeSetting(gradeId = student.gradeLevel || gradeLevel.value) {
+        return gradeSettings.find((setting) => setting.id === gradeId) || gradeSettings[1];
+      }
+
+      function gradeLevelLabel(gradeId) {
+        const setting = gradeSettings.find((item) => item.id === gradeId);
+        return setting ? setting.label : legacyGradeLabels[gradeId] || '舊版未標示';
+      }
+
+      function updateGradeLevelNote() {
+        gradeLevelNote.textContent = getGradeSetting(gradeLevel.value).note;
+      }
+
+      function getStageForPairId(pairId) {
+        return Math.ceil(Number(pairId) / 4);
+      }
+
+      function getStage(stageId = currentStage) {
+        return learningStages.find((stage) => stage.id === stageId) || learningStages[0];
+      }
+
+      function getPairMethod(pairId) {
+        const setId = activeQuestionSet ? activeQuestionSet.id : 'A';
+        const methodId = (pairMethodMap[setId] || pairMethodMap.A)[Number(pairId) - 1];
+        return factorizationMethods.find((method) => method.id === methodId) || factorizationMethods[0];
+      }
+
+      function setFeedback(state, title, text) {
+        feedbackPanel.dataset.state = state;
+        feedbackTitle.textContent = title;
+        feedbackText.textContent = text;
+        if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+          window.MathJax.typesetPromise([feedbackPanel]).catch(() => {});
+        }
+      }
+
+      function renderLearningPath() {
+        learningPath.replaceChildren();
+        learningStages.forEach((stage) => {
+          const stageItem = document.createElement('div');
+          stageItem.className = 'learning-stage';
+          if (stage.id < currentStage || (matches === 8 && stage.id === currentStage)) stageItem.classList.add('is-complete');
+          else if (stage.id === currentStage) stageItem.classList.add('is-active');
+
+          const iconSpan = document.createElement('span');
+          iconSpan.className = 'learning-stage-number';
+          iconSpan.textContent = stage.id < currentStage || (matches === 8 && stage.id === currentStage) ? '✓' : stage.id;
+
+          const textContainer = document.createElement('span');
+          textContainer.className = 'min-w-0';
+
+          const titleSpan = document.createElement('span');
+          titleSpan.className = 'block truncate text-xs font-extrabold';
+          titleSpan.textContent = `第 ${stage.id} 關`;
+
+          const subTitleSpan = document.createElement('span');
+          subTitleSpan.className = 'block truncate text-[.68rem] font-semibold opacity-80';
+          subTitleSpan.textContent = stage.shortTitle;
+
+          textContainer.append(titleSpan, subTitleSpan);
+          stageItem.append(iconSpan, textContainer);
+          learningPath.appendChild(stageItem);
+        });
+      }
+
+      function updateCardAvailability() {
+        cards.forEach((card) => {
+          const isLockedCard = Number(card.dataset.stage) > currentStage;
+          card.classList.toggle('is-locked', isLockedCard);
+          card.setAttribute('aria-disabled', String(isLockedCard));
+          if (isLockedCard) {
+            card.setAttribute('aria-label', `第 ${card.dataset.stage} 關卡牌，尚未解鎖`);
+          }
+        });
+      }
+
+      function isStageComplete(stageId = currentStage) {
+        const stageCards = cards.filter((card) => Number(card.dataset.stage) === stageId);
+        return stageCards.length > 0 && stageCards.every((card) => card.classList.contains('is-matched'));
+      }
+
+      function describeCurrentStage(reason = 'start') {
+        const stage = getStage();
+        const pairRange = stage.id === 1 ? '第 1–4 對' : '第 5–8 對';
+        learningObjective.textContent = `第 ${stage.id} 關（${pairRange}）：${stage.objective}`;
+        renderLearningPath();
+
+        if (reason === 'unlock') {
+          if (supportLevel.value === 'guided') {
+            setFeedback('hint', `第 ${stage.id} 關已解鎖：${stage.title}`, `本關同時開放 4 對卡牌。${stage.method}。${stage.steps}`);
+          } else if (supportLevel.value === 'practice') {
+            setFeedback('neutral', `第 ${stage.id} 關：${stage.title}`, `本關同時開放 4 對卡牌。方法焦點：${stage.method}。先自行判斷；需要時按「查看提示」。`);
+          } else {
+            setFeedback('neutral', `第 ${stage.id} 關：${stage.title}`, `本關同時開放 4 對卡牌。方法名稱：${stage.method}。先用自己的數學語言說出判斷依據。`);
+          }
+          return;
+        }
+
+        if (supportLevel.value === 'guided') {
+          setFeedback('hint', `第 ${stage.id} 關：${stage.title}`, `首輪同時開放 8 張卡（4 對），配中後仍要答對方法。${stage.method}。${stage.steps}`);
+        } else if (supportLevel.value === 'practice') {
+          setFeedback('neutral', `第 ${stage.id} 關：${stage.title}`, `首輪同時開放 8 張卡（4 對）；配中後仍要答對方法。本關方法：${stage.method}。先自行嘗試；需要時可按「查看提示」。`);
+        } else {
+          setFeedback('neutral', `第 ${stage.id} 關：${stage.title}`, `首輪同時開放 8 張卡，且要通過方法確認。挑戰模式：只提示方法名稱「${stage.method}」。選卡前，先想想你會檢查哪個結構。`);
+        }
+      }
+
+      function showHint() {
+        if (!student.name || matches === 8) return;
+        const stage = getStage();
+        hintsUsed += 1;
+        const prefix = supportLevel.value === 'challenge'
+          ? '挑戰模式提示已開啟。'
+          : '步驟提示：';
+        setFeedback('hint', `${stage.title}｜${stage.method}`, `${prefix}${stage.steps}`);
+        hint.textContent = `你已查看第 ${stage.id} 關提示。嘗試用「${stage.method}」的語言說出下一步。`;
       }
 
       function scoreIdentity(score) {
@@ -582,7 +1112,13 @@
             const history = JSON.parse(historyJson);
             return Array.isArray(history) ? history.filter(isValidScore) : [];
           }
-          return [];
+
+          const legacyScores = JSON.parse(window.localStorage.getItem(LEADERBOARD_STORAGE_KEY) || '[]');
+          if (!Array.isArray(legacyScores)) return [];
+          return legacyScores.filter(isValidScore).map((score) => ({
+            ...score,
+            questionSet: typeof score.questionSet === 'string' ? score.questionSet : '舊版題庫'
+          }));
         } catch (error) {
           return [];
         }
@@ -591,8 +1127,10 @@
       function saveHistory(history) {
         try {
           window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+          leaderboardNote.textContent = '所有通關紀錄儲存於此瀏覽器的 localStorage；排行榜按每位學生的最佳成績計算。';
           return true;
         } catch (error) {
+          leaderboardNote.textContent = '此瀏覽器目前無法使用 localStorage，成績和排行榜不會被保留。';
           return false;
         }
       }
@@ -656,14 +1194,16 @@
           seconds,
           moves,
           completedAt: Date.now(),
-          questionSet: activeQuestionSet ? activeQuestionSet.label : '未標示題庫'
+          questionSet: activeQuestionSet ? activeQuestionSet.label : '未標示題庫',
+          gradeLevel: student.gradeLevel,
+          supportLevel: supportLevel.value,
+          hintsUsed,
+          incorrectAttempts,
+          methodMistakes,
+          stageIncorrectAttempts: [...stageIncorrectAttempts],
+          reflection: '',
+          reflectionNote: ''
         };
-
-        // 上傳至 Firebase 雲端資料庫
-        if (typeof database !== 'undefined' && database) {
-          database.ref('scores').push(currentScore);
-        }
-
         const currentIdentity = scoreIdentity(currentScore);
         const history = getHistory();
         const bestBefore = getBestScores(history).find((score) => scoreIdentity(score) === currentIdentity);
@@ -675,14 +1215,76 @@
         const rank = updatedScores.findIndex((score) => scoreIdentity(score) === currentIdentity);
         renderLeaderboard();
         renderHistoryTable();
+        completedScoreTimestamp = currentScore.completedAt;
 
         return {
           saved,
           rank: rank === -1 ? null : rank + 1,
           personalBest,
           bestTime: personalBestAfter ? personalBestAfter.seconds : seconds,
-          bestMoves: personalBestAfter ? personalBestAfter.moves : moves
+          bestMoves: personalBestAfter ? personalBestAfter.moves : moves,
+          completedAt: currentScore.completedAt
         };
+      }
+
+      function supportLevelLabel(value) {
+        return {
+          guided: '引導',
+          practice: '練習',
+          challenge: '挑戰'
+        }[value] || '未標示';
+      }
+
+      function renderLearningSummary() {
+        const focusStage = stageIncorrectAttempts.findIndex((count) => count === Math.max(...stageIncorrectAttempts)) + 1;
+        const summaryItems = [
+          ['完成路徑', '已完成兩波八卡挑戰：結構辨認 → 綜合方法遷移。每對卡牌都通過了方法確認。'],
+          ['解題策略', `本局使用「${supportLevelLabel(supportLevel.value)}模式」，查看提示 ${hintsUsed} 次，錯配／方法誤判共 ${incorrectAttempts} 次（其中方法誤判 ${methodMistakes} 次）。`],
+          ['下一步建議', incorrectAttempts === 0
+            ? '你的配對判斷很穩定。下次可嘗試「挑戰模式」，並在每次選卡前先說出方法。'
+            : `建議回顧第 ${focusStage} 關「${getStage(focusStage).title}」：${getStage(focusStage).method}。`]
+        ];
+        learningSummary.replaceChildren();
+        summaryItems.forEach(([label, text]) => {
+          const item = document.createElement('div');
+          item.className = 'rounded-xl border border-blue-100 bg-white/75 px-3 py-2';
+          const titleEl = document.createElement('span');
+          titleEl.className = 'text-xs font-extrabold text-ocean';
+          titleEl.textContent = label;
+          const textEl = document.createElement('p');
+          textEl.className = 'mt-0.5 text-xs font-medium leading-5 text-slate-600';
+          textEl.textContent = text;
+          item.append(titleEl, textEl);
+          learningSummary.appendChild(item);
+        });
+      }
+
+      function saveReflection() {
+        if (!completedScoreTimestamp) return;
+        if (!selectedReflection) {
+          reflectionStatus.textContent = '請先選擇一項自我評估。';
+          reflectionStatus.className = 'text-xs font-bold text-rose-700';
+          return;
+        }
+
+        const history = getHistory();
+        const recordIndex = history.findIndex((score) => score.completedAt === completedScoreTimestamp && scoreIdentity(score) === `${student.className}\u0000${student.id}`);
+        if (recordIndex === -1) {
+          reflectionStatus.textContent = '找不到本局紀錄，未能儲存評估。';
+          reflectionStatus.className = 'text-xs font-bold text-rose-700';
+          return;
+        }
+
+        history[recordIndex].reflection = selectedReflection;
+        history[recordIndex].reflectionNote = reflectionNote.value.trim();
+        if (saveHistory(history)) {
+          renderHistoryTable();
+          reflectionStatus.textContent = '自我評估已儲存至本機學習紀錄。';
+          reflectionStatus.className = 'text-xs font-bold text-emerald-700';
+        } else {
+          reflectionStatus.textContent = '瀏覽器無法儲存這次自我評估。';
+          reflectionStatus.className = 'text-xs font-bold text-rose-700';
+        }
       }
 
       function formatCompletedAt(timestamp) {
@@ -704,13 +1306,163 @@
         return cell;
       }
 
+      function setFilterOptions(select, options, allLabel) {
+        const selected = select.value || 'all';
+        select.replaceChildren();
+        const allOption = document.createElement('option');
+        allOption.value = 'all';
+        allOption.textContent = allLabel;
+        select.appendChild(allOption);
+        options.forEach(({ value, label }) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = label;
+          select.appendChild(option);
+        });
+        select.value = [...select.options].some((option) => option.value === selected) ? selected : 'all';
+      }
+
+      function populateHistoryFilters(history) {
+        const classes = [...new Set(history.map((score) => score.className).filter(Boolean))]
+          .sort((first, second) => first.localeCompare(second, 'zh-Hant'))
+          .map((value) => ({ value, label: value }));
+        const sets = [...new Set(history.map((score) => score.questionSet || '舊版題庫'))]
+          .sort()
+          .map((value) => ({ value, label: value }));
+        const grades = [...new Set(history.map((score) => score.gradeLevel || 'legacy'))]
+          .map((value) => ({ value, label: gradeLevelLabel(value) }));
+        setFilterOptions(historyClassFilter, classes, '全部班別');
+        setFilterOptions(historySetFilter, sets, '全部題庫');
+        setFilterOptions(historyGradeFilter, grades, '全部難度');
+      }
+
+      function getFilteredHistory(history = getHistory()) {
+        const query = historySearch.value.trim().toLocaleLowerCase('zh-Hant');
+        return history.filter((score) => {
+          const matchesQuery = !query || `${score.name} ${score.id} ${score.className}`.toLocaleLowerCase('zh-Hant').includes(query);
+          const matchesClass = historyClassFilter.value === 'all' || score.className === historyClassFilter.value;
+          const matchesSet = historySetFilter.value === 'all' || (score.questionSet || '舊版題庫') === historySetFilter.value;
+          const matchesGrade = historyGradeFilter.value === 'all' || (score.gradeLevel || 'legacy') === historyGradeFilter.value;
+          return matchesQuery && matchesClass && matchesSet && matchesGrade;
+        });
+      }
+
+      function createAnalyticsCard(label, value, detail) {
+        const card = document.createElement('div');
+        card.className = 'rounded-2xl border border-blue-100 bg-white p-3 shadow-sm';
+        const heading = document.createElement('p');
+        heading.className = 'text-xs font-extrabold text-slate-500';
+        heading.textContent = label;
+        const stat = document.createElement('p');
+        stat.className = 'stat-value mt-1 text-2xl font-black text-ink';
+        stat.textContent = value;
+        const caption = document.createElement('p');
+        caption.className = 'mt-1 text-xs font-medium text-slate-500';
+        caption.textContent = detail;
+        card.append(heading, stat, caption);
+        return card;
+      }
+
+      function renderAnalytics(history) {
+        analyticsSummary.replaceChildren();
+        classPerformanceChart.replaceChildren();
+        errorAnalysisChart.replaceChildren();
+
+        if (history.length === 0) {
+          analyticsSummary.append(
+            createAnalyticsCard('通關紀錄', '0', '調整篩選條件或等待學生完成遊戲。'),
+            createAnalyticsCard('學生人數', '0', '以班別與學號識別。'),
+            createAnalyticsCard('平均時間', '—', '尚未有可計算資料。'),
+            createAnalyticsCard('平均錯配', '—', '尚未有可計算資料。')
+          );
+          classPerformanceChart.innerHTML = '<p class="py-5 text-center text-sm font-medium text-slate-400">暫無班別資料可視化。</p>';
+          errorAnalysisChart.innerHTML = '<p class="py-5 text-center text-sm font-medium text-slate-400">暫無錯配資料可分析。</p>';
+          return;
+        }
+
+        const uniqueStudents = new Set(history.map((score) => scoreIdentity(score)));
+        const averageSeconds = Math.round(history.reduce((sum, score) => sum + score.seconds, 0) / history.length);
+        const averageMoves = (history.reduce((sum, score) => sum + score.moves, 0) / history.length).toFixed(1);
+        const averageErrors = (history.reduce((sum, score) => sum + (Number(score.incorrectAttempts) || 0), 0) / history.length).toFixed(1);
+        analyticsSummary.append(
+          createAnalyticsCard('通關紀錄', String(history.length), '目前篩選結果'),
+          createAnalyticsCard('學生人數', String(uniqueStudents.size), '按班別與學號去重'),
+          createAnalyticsCard('平均時間', formatTime(averageSeconds), `平均 ${averageMoves} 步完成`),
+          createAnalyticsCard('平均判斷錯誤', averageErrors, '包含卡牌錯配與方法誤判')
+        );
+
+        const classGroups = new Map();
+        history.forEach((score) => {
+          const className = score.className || '未標示班別';
+          if (!classGroups.has(className)) classGroups.set(className, []);
+          classGroups.get(className).push(score);
+        });
+        const classStats = [...classGroups.entries()]
+          .map(([className, scores]) => ({
+            className,
+            count: scores.length,
+            averageSeconds: Math.round(scores.reduce((sum, score) => sum + score.seconds, 0) / scores.length),
+            averageMoves: (scores.reduce((sum, score) => sum + score.moves, 0) / scores.length).toFixed(1)
+          }))
+          .sort((first, second) => first.averageSeconds - second.averageSeconds);
+        const maxSeconds = Math.max(...classStats.map((stat) => stat.averageSeconds), 1);
+        classStats.forEach((stat) => {
+          const row = document.createElement('div');
+          row.className = 'grid grid-cols-[4rem_1fr_auto] items-center gap-3';
+          const label = document.createElement('span');
+          label.className = 'truncate text-xs font-extrabold text-ink';
+          label.textContent = stat.className;
+          const track = document.createElement('div');
+          track.className = 'h-3 overflow-hidden rounded-full bg-blue-100';
+          const bar = document.createElement('div');
+          bar.className = 'h-full rounded-full bg-gradient-to-r from-ocean to-blue-400 transition-[width] duration-300';
+          bar.style.width = `${Math.max(8, Math.round((stat.averageSeconds / maxSeconds) * 100))}%`;
+          track.appendChild(bar);
+          const value = document.createElement('span');
+          value.className = 'stat-value whitespace-nowrap text-xs font-extrabold text-ink';
+          value.textContent = `${formatTime(stat.averageSeconds)} · ${stat.averageMoves} 步`;
+          row.append(label, track, value);
+          classPerformanceChart.appendChild(row);
+        });
+
+        const stageErrors = learningStages.map((stage, index) => ({
+          stage,
+          errors: history.reduce((sum, score) => sum + (Array.isArray(score.stageIncorrectAttempts) ? Number(score.stageIncorrectAttempts[index]) || 0 : 0), 0)
+        }));
+        const maxErrors = Math.max(...stageErrors.map((item) => item.errors), 1);
+        stageErrors.forEach(({ stage, errors }) => {
+          const row = document.createElement('div');
+          row.className = 'grid grid-cols-[5.75rem_1fr_auto] items-center gap-3';
+          const label = document.createElement('span');
+          label.className = 'text-xs font-extrabold leading-4 text-ink';
+          label.textContent = `第 ${stage.id} 關 · ${stage.shortTitle}`;
+          const track = document.createElement('div');
+          track.className = 'h-3 overflow-hidden rounded-full bg-amber-100';
+          const bar = document.createElement('div');
+          bar.className = 'h-full rounded-full bg-gradient-to-r from-amber-400 to-gold transition-[width] duration-300';
+          bar.style.width = `${Math.max(errors === 0 ? 0 : 8, Math.round((errors / maxErrors) * 100))}%`;
+          track.appendChild(bar);
+          const value = document.createElement('span');
+          value.className = 'stat-value whitespace-nowrap text-xs font-extrabold text-ink';
+          value.textContent = `${errors} 次`;
+          row.append(label, track, value);
+          errorAnalysisChart.appendChild(row);
+        });
+      }
+
       function renderHistoryTable() {
         const history = getHistory().sort((first, second) => second.completedAt - first.completedAt);
+        populateHistoryFilters(history);
+        const filteredHistory = getFilteredHistory(history);
         historyRows.replaceChildren();
-        historyCount.textContent = `共 ${history.length} 筆通關紀錄`;
-        historyEmptyState.classList.toggle('hidden', history.length !== 0);
+        historyCount.textContent = `共 ${history.length} 筆通關紀錄｜顯示 ${filteredHistory.length} 筆`;
+        filterSummary.textContent = filteredHistory.length === history.length
+          ? '顯示全部通關紀錄。'
+          : `已套用篩選：顯示 ${filteredHistory.length}／${history.length} 筆紀錄。`;
+        historyEmptyState.classList.toggle('hidden', filteredHistory.length !== 0);
+        historyEmptyState.textContent = history.length === 0 ? '目前尚未有通關歷史成績。' : '沒有符合目前篩選條件的歷史成績。';
 
-        history.forEach((score) => {
+        filteredHistory.forEach((score) => {
           const row = document.createElement('tr');
           row.className = 'hover:bg-blue-50/45';
           row.append(
@@ -719,11 +1471,34 @@
             createHistoryCell(score.className, 'text-slate-600'),
             createHistoryCell(score.id, 'font-mono text-slate-600'),
             createHistoryCell(score.questionSet || '舊版題庫', 'text-slate-600'),
+            createHistoryCell(gradeLevelLabel(score.gradeLevel), 'text-slate-600'),
+            createHistoryCell(supportLevelLabel(score.supportLevel), 'text-slate-600'),
             createHistoryCell(formatTime(score.seconds), 'stat-value whitespace-nowrap text-right font-extrabold text-ink'),
-            createHistoryCell(String(score.moves), 'stat-value text-right font-extrabold text-ink')
+            createHistoryCell(String(score.moves), 'stat-value text-right font-extrabold text-ink'),
+            createHistoryCell(`${Number(score.hintsUsed) || 0}／${Number(score.incorrectAttempts) || 0}／${Number(score.methodMistakes) || 0}`, 'stat-value whitespace-nowrap text-right font-extrabold text-ink'),
+            createHistoryCell(score.reflection || '未填寫', 'text-slate-600')
           );
           historyRows.appendChild(row);
         });
+        renderAnalytics(filteredHistory);
+      }
+
+      function clearFilteredHistory() {
+        const history = getHistory();
+        const filteredHistory = getFilteredHistory(history);
+        if (filteredHistory.length === 0) {
+          filterSummary.textContent = '目前篩選結果沒有可清除的紀錄。';
+          return;
+        }
+        const scope = filteredHistory.length === history.length ? '全部歷史成績' : `目前篩選出的 ${filteredHistory.length} 筆成績`;
+        if (!window.confirm(`確定要清除${scope}嗎？此操作只影響此瀏覽器的 localStorage，且無法復原。`)) return;
+        const selectedRecords = new Set(filteredHistory);
+        const remainingHistory = history.filter((score) => !selectedRecords.has(score));
+        if (saveHistory(remainingHistory)) {
+          renderLeaderboard();
+          renderHistoryTable();
+          filterSummary.textContent = `已清除 ${filteredHistory.length} 筆篩選紀錄。`;
+        }
       }
 
       function escapeCsvValue(value) {
@@ -732,23 +1507,30 @@
       }
 
       function exportHistoryCsv() {
-        const history = getHistory().sort((first, second) => second.completedAt - first.completedAt);
+        const history = getFilteredHistory(getHistory()).sort((first, second) => second.completedAt - first.completedAt);
         if (history.length === 0) {
           historyEmptyState.classList.remove('hidden');
-          historyEmptyState.textContent = '目前尚未有可匯出的通關歷史成績。';
+          historyEmptyState.textContent = '目前篩選結果沒有可匯出的通關歷史成績。';
           return;
         }
 
         const rows = [
-          ['完成日期與時間', '學生', '班別', '學號', '題庫', '通關時間', '步數'],
+          ['完成日期與時間', '學生', '班別', '學號', '題庫', '年級難度', '學習支援', '通關時間', '步數', '提示次數', '錯配及方法誤判次數', '方法誤判次數', '自我評估', '自評筆記'],
           ...history.map((score) => [
             formatCompletedAt(score.completedAt),
             score.name,
             score.className,
             score.id,
             score.questionSet || '舊版題庫',
+            gradeLevelLabel(score.gradeLevel),
+            supportLevelLabel(score.supportLevel),
             formatTime(score.seconds),
-            String(score.moves)
+            String(score.moves),
+            String(Number(score.hintsUsed) || 0),
+            String(Number(score.incorrectAttempts) || 0),
+            String(Number(score.methodMistakes) || 0),
+            score.reflection || '',
+            score.reflectionNote || ''
           ])
         ];
         const csv = `\uFEFF${rows.map((row) => row.map(escapeCsvValue).join(',')).join('\r\n')}`;
@@ -756,7 +1538,7 @@
         const downloadUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = `因式分解卡牌配對_歷史成績_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.download = `因式分解卡牌配對_篩選成績_${new Date().toISOString().slice(0, 10)}.csv`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -809,21 +1591,20 @@
         teacherPassword.value = '';
         teacherPasswordConfirm.value = '';
         teacherAccessError.classList.add('hidden');
-        teacherAccessModal.classList.add('modal-show');
-        window.setTimeout(() => teacherPassword.focus(), 180);
+        openModalHelper(teacherAccessModal, teacherPassword);
       }
 
       function hideTeacherAccessModal() {
-        teacherAccessModal.classList.remove('modal-show');
+        closeModalHelper(teacherAccessModal);
       }
 
       function showTeacherDashboard() {
         renderHistoryTable();
-        teacherDashboardModal.classList.add('modal-show');
+        openModalHelper(teacherDashboardModal, historySearch);
       }
 
       function hideTeacherDashboard() {
-        teacherDashboardModal.classList.remove('modal-show');
+        closeModalHelper(teacherDashboardModal);
       }
 
       async function handleTeacherAccess(event) {
@@ -887,14 +1668,16 @@
       }
 
       function selectQuestionSet() {
-        activeQuestionSet = questionSets[Math.floor(Math.random() * questionSets.length)];
-        setIndicator.textContent = `本局隨機題庫：${activeQuestionSet.label} · ${activeQuestionSet.description}`;
+        const setting = getGradeSetting();
+        const eligibleSets = questionSets.filter((set) => setting.questionSetIds.includes(set.id));
+        activeQuestionSet = eligibleSets[Math.floor(Math.random() * eligibleSets.length)];
+        setIndicator.textContent = `本局難度：${setting.label}｜隨機題庫：${activeQuestionSet.label} · ${activeQuestionSet.description}`;
       }
 
       function getDeck() {
         return shuffle(activeQuestionSet.pairs.flatMap(pair => [
-          { pairId: pair.id, kind: '展開式', expression: pair.expansion },
-          { pairId: pair.id, kind: '因式分解', expression: pair.factor }
+          { pairId: pair.id, stage: getStageForPairId(pair.id), kind: '展開式', expression: pair.expansion },
+          { pairId: pair.id, stage: getStageForPairId(pair.id), kind: '因式分解', expression: pair.factor }
         ]));
       }
 
@@ -903,11 +1686,13 @@
         button.type = 'button';
         button.className = 'math-card';
         button.dataset.pairId = String(card.pairId);
+        button.dataset.stage = String(card.stage);
         button.dataset.kind = card.kind;
         button.setAttribute('aria-label', `第 ${position + 1} 張卡牌，尚未翻開`);
         button.innerHTML = `
           <div class="card-inner">
             <div class="card-face card-front" aria-hidden="true">
+              <span class="locked-label">第 ${card.stage} 關解鎖後開放</span>
               <div class="front-symbol">ƒ</div>
               <span class="front-label">FACTOR MATCH</span>
             </div>
@@ -921,10 +1706,27 @@
         return button;
       }
 
+      function fitCardFormulas() {
+        grid.querySelectorAll('.formula').forEach((formula) => {
+          formula.style.removeProperty('font-size');
+          const math = formula.querySelector('mjx-container');
+          const availableWidth = formula.clientWidth;
+          if (!math || !availableWidth) return;
+
+          const mathWidth = math.getBoundingClientRect().width;
+          if (mathWidth <= availableWidth) return;
+
+          const baseSize = Number.parseFloat(window.getComputedStyle(formula).fontSize);
+          const fittedSize = Math.max(9, baseSize * (availableWidth / mathWidth) * .96);
+          formula.style.fontSize = `${fittedSize.toFixed(2)}px`;
+        });
+      }
+
       async function renderMath() {
         if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
           await window.MathJax.typesetPromise([grid]);
         }
+        fitCardFormulas();
       }
 
       async function newGame() {
@@ -932,7 +1734,10 @@
           showStudentModal();
           return;
         }
-        window.clearTimeout(mismatchTimeout);
+        if (mismatchTimeout) {
+          window.clearTimeout(mismatchTimeout);
+          mismatchTimeout = null;
+        }
         stopTimer();
         openCards = [];
         cards = [];
@@ -941,10 +1746,22 @@
         seconds = 0;
         hasStarted = false;
         isLocked = false;
+        currentStage = 1;
+        hintsUsed = 0;
+        incorrectAttempts = 0;
+        stageIncorrectAttempts = [0, 0];
+        methodMistakes = 0;
+        pendingPair = null;
+        selectedReflection = '';
+        completedScoreTimestamp = null;
+        reflectionNote.value = '';
+        reflectionStatus.textContent = '';
+        ratingChoices.forEach((choice) => choice.setAttribute('aria-pressed', 'false'));
         selectQuestionSet();
-        hint.textContent = `本局已隨機抽取${activeQuestionSet.label}。每回合翻開兩張卡牌，判斷它們是否為同一題的展開式與因式分解。`;
+        hint.textContent = `本局已隨機抽取${activeQuestionSet.label}。第 1 波會同時開放 8 張卡（4 對）；每一對均須完成方法確認，才會解鎖第 2 波。`;
         updateStats();
         hideModal();
+        hideMethodCheck();
 
         grid.replaceChildren();
         const deck = getDeck();
@@ -955,11 +1772,13 @@
           grid.appendChild(scene);
         });
         cards = [...grid.querySelectorAll('.math-card')];
+        updateCardAvailability();
+        describeCurrentStage('start');
         await renderMath();
       }
 
       function flipCard(card) {
-        if (isLocked || card.classList.contains('is-flipped') || card.classList.contains('is-matched')) return;
+        if (isLocked || card.classList.contains('is-locked') || card.classList.contains('is-flipped') || card.classList.contains('is-matched')) return;
 
         startTimer();
         card.classList.add('is-flipped');
@@ -973,28 +1792,97 @@
         }
       }
 
+      function showMethodCheck(first, second) {
+        const method = getPairMethod(first.dataset.pairId);
+        pendingPair = { first, second, method, stage: Number(first.dataset.stage) };
+        methodPairPrompt.textContent = `這一對已正確配對。它最主要使用哪一種因式分解方法？`;
+        methodFeedback.textContent = '';
+        methodFeedback.className = 'mt-4 min-h-6 text-center text-sm font-bold text-ocean';
+        methodOptions.replaceChildren();
+        factorizationMethods.forEach((candidate) => {
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'rounded-xl border border-blue-200 bg-white px-3 py-3 text-left text-sm font-extrabold text-ocean transition hover:-translate-y-0.5 hover:bg-sky focus:outline-none focus:ring-4 focus:ring-blue-100 active:translate-y-0';
+          
+          const labelSpan = document.createElement('span');
+          labelSpan.className = 'block';
+          labelSpan.textContent = candidate.label;
+
+          const descSpan = document.createElement('span');
+          descSpan.className = 'mt-1 block text-xs font-medium leading-5 text-slate-500';
+          descSpan.textContent = candidate.description;
+
+          option.append(labelSpan, descSpan);
+          option.addEventListener('click', () => verifyMethodChoice(candidate));
+          methodOptions.appendChild(option);
+        });
+        openModalHelper(methodModal, methodOptions.querySelector('button'));
+      }
+
+      function hideMethodCheck() {
+        closeModalHelper(methodModal);
+      }
+
+      function verifyMethodChoice(candidate) {
+        if (!pendingPair) return;
+        const { first, second, method, stage } = pendingPair;
+        if (candidate.id !== method.id) {
+          methodMistakes += 1;
+          incorrectAttempts += 1;
+          stageIncorrectAttempts[stage - 1] += 1;
+          methodFeedback.textContent = `尚未正確。這一對不是「${candidate.label}」；請重新觀察共同因式、平方項或重複二項式。`;
+          methodFeedback.className = 'mt-4 min-h-6 text-center text-sm font-bold text-rose-700';
+          return;
+        }
+
+        first.classList.remove('is-flipped');
+        second.classList.remove('is-flipped');
+        first.classList.add('is-matched');
+        second.classList.add('is-matched');
+        first.setAttribute('aria-label', `${first.dataset.kind}卡牌，已成功配對並完成方法確認`);
+        second.setAttribute('aria-label', `${second.dataset.kind}卡牌，已成功配對並完成方法確認`);
+        matches += 1;
+        openCards = [];
+        pendingPair = null;
+        updateStats();
+        hideMethodCheck();
+        const stageDetails = getStage(stage);
+        setFeedback('correct', `配對與方法都正確｜第 ${stage} 關`, `你選擇了「${method.label}」。${stageDetails.success}`);
+        hint.textContent = `方法確認成功：${method.label}。下一對請先說出你看見的結構，再翻開卡牌。`;
+
+        if (matches === 8) {
+          stopTimer();
+          window.setTimeout(showWinModal, 450);
+        } else if (isStageComplete(currentStage)) {
+          isLocked = true;
+          window.setTimeout(() => {
+            currentStage += 1;
+            updateCardAvailability();
+            describeCurrentStage('unlock');
+            hint.textContent = '第 2 波 8 張卡已解鎖。現在同時比較 4 對綜合題，配中後仍需完成方法確認。';
+            isLocked = false;
+          }, 850);
+        } else {
+          isLocked = false;
+        }
+      }
+
       function checkPair() {
         const [first, second] = openCards;
         const isPair = first.dataset.pairId === second.dataset.pairId && first.dataset.kind !== second.dataset.kind;
+        const stage = getStage();
 
         if (isPair) {
-          first.classList.add('is-matched');
-          second.classList.add('is-matched');
-          first.setAttribute('aria-label', `${first.dataset.kind}卡牌，已成功配對`);
-          second.setAttribute('aria-label', `${second.dataset.kind}卡牌，已成功配對`);
-          matches += 1;
-          openCards = [];
-          updateStats();
-          hint.textContent = matches === 8 ? '全部配對完成！' : '配對成功！繼續找下一組。';
-          if (matches === 8) {
-            stopTimer();
-            window.setTimeout(showWinModal, 450);
-          }
+          isLocked = true;
+          showMethodCheck(first, second);
           return;
         }
 
         isLocked = true;
-        hint.textContent = '再看一下！這兩張卡會在 1.5 秒後自動蓋上。';
+        incorrectAttempts += 1;
+        stageIncorrectAttempts[currentStage - 1] += 1;
+        setFeedback('incorrect', `尚未配對｜第 ${stage.id} 關：${stage.title}`, stage.correction);
+        hint.textContent = '這兩張卡會在 1.5 秒後自動蓋上。先用提示中的數學結構重新比較，再作下一次選擇。';
         mismatchTimeout = window.setTimeout(() => {
           first.classList.remove('is-flipped');
           second.classList.remove('is-flipped');
@@ -1002,7 +1890,7 @@
           second.setAttribute('aria-label', '卡牌，尚未翻開');
           openCards = [];
           isLocked = false;
-          hint.textContent = '提示：每回合翻開兩張卡牌，判斷它們是否為同一題的展開式與因式分解。';
+          hint.textContent = `再試一次：第 ${stage.id} 關可運用「${stage.method}」。若仍不確定，按「查看提示」檢查步驟。`;
         }, 1500);
       }
 
@@ -1016,32 +1904,52 @@
           : moves <= 12
             ? '很棒的推理力！你已掌握進階因式分解。'
             : '完成挑戰就是勝利，再試一次可挑戰更少步數。';
+        renderLearningSummary();
+        reflectionStatus.textContent = '選擇一項自我評估，再按「儲存評估」。';
+        reflectionStatus.className = 'text-xs font-bold text-slate-500';
         leaderboardMessage.textContent = !leaderboardResult.saved
           ? '本次成績已完成，但瀏覽器無法儲存排行榜。'
           : leaderboardResult.rank
-            ? `太棒了！你目前排名雲端排行榜第 ${leaderboardResult.rank} 名。`
+            ? `太棒了！你目前排名本機排行榜第 ${leaderboardResult.rank} 名。`
             : leaderboardResult.personalBest
-              ? '本次成績已完成，尚未進入雲端前五名排行榜。'
+              ? '本次成績已完成，尚未進入本機前五名排行榜。'
               : '本次成績未超越你的個人最佳紀錄，排行榜維持不變。';
-        modal.classList.add('modal-show');
-        playAgainBtn.focus();
+        openModalHelper(modal, playAgainBtn);
       }
 
       function hideModal() {
-        modal.classList.remove('modal-show');
+        closeModalHelper(modal);
       }
 
-      function showStudentModal() {
-        studentModal.classList.add('modal-show');
-        window.setTimeout(() => studentNameInput.focus(), 180);
+      function showStudentModal(mode = 'checkin') {
+        studentModalMode = mode;
+        const isDifficultyChange = mode === 'difficulty';
+        studentTitle.textContent = isDifficultyChange ? '選擇下一局難度' : '開始前，先登記資料';
+        studentModalDescription.textContent = isDifficultyChange
+          ? '選擇後會重新開始新一局，姓名、班別與學號會保留；本局尚未完成的進度不會計入成績。'
+          : '請填寫以下資料；完成遊戲後，成績會儲存在此瀏覽器的本機排行榜，不會上傳。';
+        studentIdentityFields.classList.toggle('hidden', isDifficultyChange);
+        studentModalCancel.classList.toggle('hidden', !isDifficultyChange);
+        studentSubmitBtn.textContent = isDifficultyChange ? '以此難度重新開始' : '開始隨機挑戰';
+        gradeLevel.value = student.gradeLevel || 'middle';
+        updateGradeLevelNote();
+        formError.classList.add('hidden');
+        openModalHelper(studentModal, isDifficultyChange ? gradeLevel : studentNameInput);
       }
 
       function hideStudentModal() {
-        studentModal.classList.remove('modal-show');
+        closeModalHelper(studentModal);
       }
 
       studentForm.addEventListener('submit', (event) => {
         event.preventDefault();
+        if (studentModalMode === 'difficulty' && student.name) {
+          student.gradeLevel = gradeLevel.value;
+          profileSummary.textContent = `學生：${student.name} · 班別：${student.className} · 學號：${student.id} · 難度：${gradeLevelLabel(student.gradeLevel)}`;
+          hideStudentModal();
+          newGame();
+          return;
+        }
         const name = studentNameInput.value.trim();
         const className = studentClassInput.value.trim();
         const id = studentIdInput.value.trim();
@@ -1053,15 +1961,23 @@
           return;
         }
 
-        student = { name, className, id };
+        student = { name, className, id, gradeLevel: gradeLevel.value };
         formError.classList.add('hidden');
-        profileSummary.textContent = `學生：${student.name} · 班別：${student.className} · 學號：${student.id}`;
+        profileSummary.textContent = `學生：${student.name} · 班別：${student.className} · 學號：${student.id} · 難度：${gradeLevelLabel(student.gradeLevel)}`;
         profileSummary.classList.remove('hidden');
         hideStudentModal();
         newGame();
       });
 
       teacherBtn.addEventListener('click', () => showTeacherAccessModal());
+      changeDifficultyBtn.addEventListener('click', () => {
+        if (!student.name) {
+          showStudentModal();
+          return;
+        }
+        showStudentModal('difficulty');
+      });
+      studentModalCancel.addEventListener('click', hideStudentModal);
       teacherAccessForm.addEventListener('submit', handleTeacherAccess);
       teacherAccessCancel.addEventListener('click', () => {
         hideTeacherAccessModal();
@@ -1075,49 +1991,46 @@
         if (event.target === teacherDashboardModal) hideTeacherDashboard();
       });
       exportCsvBtn.addEventListener('click', exportHistoryCsv);
+      clearFilteredBtn.addEventListener('click', clearFilteredHistory);
+      resetHistoryFiltersBtn.addEventListener('click', () => {
+        historySearch.value = '';
+        historyClassFilter.value = 'all';
+        historySetFilter.value = 'all';
+        historyGradeFilter.value = 'all';
+        renderHistoryTable();
+      });
+      [historySearch, historyClassFilter, historySetFilter, historyGradeFilter].forEach((control) => {
+        control.addEventListener('input', renderHistoryTable);
+        control.addEventListener('change', renderHistoryTable);
+      });
       changeTeacherPasswordBtn.addEventListener('click', () => {
         returnToDashboardAfterAccess = true;
         hideTeacherDashboard();
         showTeacherAccessModal('change');
       });
+      supportLevel.addEventListener('change', () => {
+        if (!student.name || matches === 8) return;
+        describeCurrentStage('start');
+        hint.textContent = `已切換為「${supportLevel.options[supportLevel.selectedIndex].text}」。你可隨時按「查看提示」取得本關步驟。`;
+      });
+      hintBtn.addEventListener('click', showHint);
+      ratingChoices.forEach((choice) => {
+        choice.addEventListener('click', () => {
+          selectedReflection = choice.dataset.rating;
+          ratingChoices.forEach((item) => item.setAttribute('aria-pressed', String(item === choice)));
+          reflectionStatus.textContent = `已選擇「${selectedReflection}」，可加入筆記後儲存。`;
+          reflectionStatus.className = 'text-xs font-bold text-slate-500';
+        });
+      });
+
+      saveReflectionBtn.addEventListener('click', saveReflection);
       restartBtn.addEventListener('click', newGame);
       playAgainBtn.addEventListener('click', newGame);
-      modal.addEventListener('click', (event) => {
-        if (event.target === modal) hideModal();
-      });
-      document.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape') return;
-        if (teacherAccessModal.classList.contains('modal-show')) {
-          hideTeacherAccessModal();
-          if (returnToDashboardAfterAccess) {
-            returnToDashboardAfterAccess = false;
-            showTeacherDashboard();
-          }
-        } else if (teacherDashboardModal.classList.contains('modal-show')) {
-          hideTeacherDashboard();
-        } else if (modal.classList.contains('modal-show')) {
-          hideModal();
-        }
-      });
 
-      window.addEventListener('load', () => {
-        renderLeaderboard();
-        renderHistoryTable();
-        showStudentModal();
-
-        // 實時監聽 Firebase 雲端排行榜
-        if (typeof database !== 'undefined' && database) {
-          database.ref('scores').on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-              const cloudHistory = Object.values(data);
-              saveHistory(cloudHistory);
-              renderLeaderboard();
-              renderHistoryTable();
-            }
-          });
-        }
-      }, { once: true });
+      updateGradeLevelNote();
+      gradeLevel.addEventListener('change', updateGradeLevelNote);
+      renderLeaderboard();
+      showStudentModal('checkin');
     })();
   </script>
 </body>
